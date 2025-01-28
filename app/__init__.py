@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, jsonify
 from flask_migrate import Migrate
 from app.controllers.users import auth_bp
 from app.database import init_db
