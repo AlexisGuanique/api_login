@@ -242,10 +242,11 @@ def login():
             if user.token_expiration and user.token_expiration > datetime.utcnow():
                 return jsonify({
                     "message": "Login exitoso",
+                    "id": user.id,
                     "access_token": user.access_token,
                     "expires_in": user.token_expiration.strftime('%Y-%m-%d %H:%M:%S'),
-                    "name": user.name,  # Campo nuevo
-                    "lastname": user.lastname  # Campo nuevo
+                    "name": user.name,
+                    "lastname": user.lastname
                 }), 200
             else:
                 return jsonify({"error": "El token ha expirado, por favor registre nuevamente"}), 401
@@ -261,8 +262,8 @@ def logout():
 
 
 #! ENDPOINT VERIFY
-@auth_bp.route('/verify-token', methods=['POST'])
-def verify_token():
+@auth_bp.route('/verify-token/<int:user_id>', methods=['POST'])
+def verify_token(user_id):
     data = request.json
     token = data.get("access_token")
 
@@ -270,33 +271,32 @@ def verify_token():
         return jsonify({"error": "Token no proporcionado", "is_valid": False}), 400
 
     try:
-        # Decodificar sin verificar la firma
-        decoded_token = jwt.decode(token, options={"verify_signature": False})
+        # Buscar el usuario por ID
+        user = User.query.filter_by(id=user_id).first()
+
+        if not user:
+            return jsonify({"error": "Usuario no encontrado", "is_valid": False}), 404
+
+        # Verificar si el token coincide con el almacenado en la base de datos
+        if user.access_token != token:
+            return jsonify({"error": "Token inválido", "is_valid": False}), 401
 
         # Verificar si el token ha expirado
-        exp = decoded_token.get("exp")
-        if not exp or datetime.utcnow() > datetime.utcfromtimestamp(exp):
+        if user.token_expiration and datetime.utcnow() > user.token_expiration:
             return jsonify({
                 "message": "El token ha expirado",
                 "is_valid": False
             }), 200
 
+        # Si todo es válido
         return jsonify({
             "message": "Token válido",
             "is_valid": True,
-            "username": decoded_token.get("username")
+            "username": user.username,
+            "name": user.name,
+            "lastname": user.lastname
         }), 200
 
-    except jwt.ExpiredSignatureError:
-        return jsonify({
-            "message": "El token ha expirado",
-            "is_valid": False
-        }), 200
-    except jwt.InvalidTokenError:
-        return jsonify({
-            "message": "Token inválido",
-            "is_valid": False
-        }), 401
     except Exception as e:
         return jsonify({
             "message": f"Error inesperado: {str(e)}",
