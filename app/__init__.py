@@ -1,13 +1,13 @@
 import os
 from flask import Flask
 from flask_migrate import Migrate
-from app.routes import auth_bp
+from app.controllers.users import auth_bp
 from app.database import init_db
 from app.database import db
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-load_dotenv()  # Cargar las variables de entorno desde el archivo .env
+load_dotenv()
 
 
 def create_app():
