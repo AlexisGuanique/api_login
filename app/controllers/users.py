@@ -8,6 +8,8 @@ from flask import Blueprint, request, jsonify, current_app
 from app.models.user import User
 from app.database import db
 
+
+
 load_dotenv()
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -194,6 +196,46 @@ def register():
             "token_expiration": new_user.token_expiration.strftime('%Y-%m-%d %H:%M:%S')
         }
     }), 201
+
+
+#! FUNCION MODIFICAR FECHA DE EXPIRACION
+@auth_bp.route('/update-token-expiration/<int:user_id>', methods=['PUT'])
+def update_token_expiration(user_id):
+    """ Modifica la fecha de expiración del token de un usuario. """
+    
+    admin_key = request.headers.get('Admin-Key')
+    if admin_key != os.getenv('ADMIN_KEY'):
+        return jsonify({"error": "Acceso no autorizado"}), 403
+
+    data = request.json
+    new_expiration = data.get("token_expiration")
+
+    if not new_expiration:
+        return jsonify({"error": "La nueva fecha de expiración es requerida"}), 400
+
+    try:
+        expiration_date = datetime.strptime(new_expiration, '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return jsonify({"error": "Formato inválido para token_expiration. Use 'YYYY-MM-DD HH:MM:SS'"}), 400
+
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # Actualizar solo la fecha de expiración del token
+    user.token_expiration = expiration_date
+    db.session.commit()
+
+    return jsonify({
+        "message": "Fecha de expiración del token actualizada exitosamente",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "name": user.name,
+            "lastname": user.lastname,
+            "token_expiration": user.token_expiration.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 200
 
 
 #! ENDPOONT DELETE USER
