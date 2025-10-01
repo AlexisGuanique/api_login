@@ -34,6 +34,8 @@ echo "▶️  Ejecutando contenedor..."
 sudo docker run -d \
   -p 80:80 \
   -v api-login-data:/api_login/app/database \
+  -e DATABASE_PATH=/api_login/app/database \
+  -e ADMIN_KEY=my_very_secret_key \
   --name api-login-container \
   --restart unless-stopped \
   api-login

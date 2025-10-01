@@ -11,6 +11,7 @@ services:
       - FLASK_APP=app:app
       - PYTHONPATH=/api_login
       - ADMIN_KEY=my_very_secret_key
+      - DATABASE_PATH=/api_login/app/database
     restart: unless-stopped
 
 volumes:
