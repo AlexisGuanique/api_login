@@ -4,8 +4,6 @@ __pycache__
 
 cookies.db
 
-docker-compose.yml
-
 populate_db.py
 
 .env

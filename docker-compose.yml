@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  api-login:
+    build: .
+    ports:
+      - "80:80"
+    volumes:
+      - api-login-data:/api_login/app/database
+    environment:
+      - FLASK_APP=app:app
+      - PYTHONPATH=/api_login
+      - ADMIN_KEY=my_very_secret_key
+    restart: unless-stopped
+
+volumes:
+  api-login-data:
