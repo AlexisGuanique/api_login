@@ -10,7 +10,11 @@ sudo docker volume create api-login-data 2>/dev/null || echo "Volumen ya existe"
 echo "💾 Creando backup de la base de datos..."
 if sudo docker ps -q -f name=api-login-container | grep -q .; then
     BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-    sudo docker exec api-login-container cp /api_login/app/database/users.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || echo "No se pudo crear backup"
+    # Intentar backup desde la ubicación correcta primero
+    sudo docker exec api-login-container cp /api_login/app/database/users.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || \
+    # Si no existe, intentar desde la ubicación anterior
+    sudo docker exec api-login-container cp /api_login/database.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || \
+    echo "No se pudo crear backup"
     echo "📁 Backup creado: users.db.backup.$BACKUP_DATE"
 else
     echo "ℹ️  No hay contenedor corriendo, saltando backup"
@@ -60,6 +64,14 @@ if [ "$TABLES_EXIST" = "EXISTS" ]; then
 else
     echo "🗄️  Aplicando migraciones (primera vez)..."
     sudo docker exec api-login-container flask db upgrade
+    
+    # Mover base de datos existente al volumen si existe en ubicación anterior
+    echo "🔄 Verificando si hay base de datos en ubicación anterior..."
+    if sudo docker exec api-login-container test -f /api_login/database.db; then
+        echo "📦 Moviendo base de datos al volumen..."
+        sudo docker exec api-login-container cp /api_login/database.db /api_login/app/database/users.db
+        echo "✅ Base de datos movida al volumen"
+    fi
 fi
 
 # Verificar estado

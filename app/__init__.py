@@ -33,7 +33,7 @@ def create_app():
         database_path = os.path.join(basedir, database_path)
 
     # Configuración de SQLAlchemy
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}/users.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     database_dir = os.path.dirname(database_path)
