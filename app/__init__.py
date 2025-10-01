@@ -3,6 +3,7 @@ from flask import Flask, jsonify
 from flask_migrate import Migrate
 from app.controllers.users import auth_bp
 from app.controllers.emails import emails_bp
+from app.controllers.accounts import accounts_bp
 from app.database import init_db
 from app.database import db
 from flask_cors import CORS
@@ -11,6 +12,7 @@ from dotenv import load_dotenv
 # Importar modelos para que las migraciones los detecten
 from app.models.user import User
 from app.models.email import Email
+from app.models.account import Account
 
 load_dotenv()
 
@@ -35,6 +37,7 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(emails_bp)
+    app.register_blueprint(accounts_bp)
 
     init_db(app)
 

@@ -2,275 +2,274 @@
 
 Esta aplicación proporciona una API RESTful construida con Flask para la gestión de usuarios, autenticación y verificación de tokens.
 
----
+## 🚀 Despliegue Rápido
 
-## Requisitos previos
+### 1. Configuración Inicial
 
-1. Python 3.9 o superior.
-2. Docker y Docker Compose instalados en tu sistema.
-3. Archivo `.env` con las siguientes variables configuradas:
+```bash
+# Clonar el repositorio
+git clone <tu-repositorio>
+cd api_login
 
-```env
-ADMIN_KEY=my_very_secret_key_example
-DATABASE_PATH=/api_login/app/database/users.db
-DATABASE_PATH_DEV=database/users.db
+# Crear archivo de configuración
+cat > .env << EOF
+ADMIN_KEY=my_very_secret_key
+DATABASE_PATH=/api_login/app/database
+EOF
+
+# Verificar configuración
+cat .env
 ```
 
----
+### 2. Desplegar con Docker
 
-## Configuración del entorno virtual
-
-1. **Crear el entorno virtual:**
-
-   ```bash
-   python -m venv venv
-   ```
-
-2. **Activar el entorno virtual:**
-
-   - En macOS/Linux:
-     ```bash
-     source venv/bin/activate
-     ```
-   - En Windows:
-     ```bash
-     .\venv\Scripts\activate
-     ```
-
-3. **Instalar las dependencias:**
-
-   ```bash
-   pip install --upgrade pip
-   pip install -r requirements.txt
-   ```
-
----
-
-## Ejecutar la aplicación localmente
-
-1. **Configurar las variables de entorno:**
-
-   Asegúrate de tener un archivo `.env` en el directorio principal con las configuraciones necesarias.
-
-2. **Ejecutar la aplicación:**
-
-   ```bash
-   flask run --host=0.0.0.0 --port=8080
-   ```
-
-La aplicación estará disponible en: [http://localhost:8080](http://localhost:8080)
-
----
-
-## Ejecutar la aplicación con Docker
-
-1. **Construir la imagen de Docker:**
-
-   ```bash
-   docker build -t api_login .
-   ```
-
-2. **Ejecutar el contenedor:**
-
-   ```bash
-   docker run -d -p 8080:8080 --env-file .env --name api_login_container api_login
-   ```
-
-La aplicación estará disponible en: [http://localhost:8080](http://localhost:8080)
-
----
-
-## Endpoints de la API
-
-### **1. Obtener todos los usuarios**
-**GET** `/api/auth/users`
-
-#### Headers:
-- `Admin-Key`: (Requerido) La clave de administrador para autenticar.
-
-#### Respuesta:
-```json
-{
-  "message": "Usuarios obtenidos exitosamente",
-  "users": [
-    {
-      "id": 1,
-      "username": "admin",
-      "password": "<hashed_password>",
-      "token_expiration": "2025-02-28 12:00:00",
-      "access_token": "<token>"
-    }
-  ]
-}
+```bash
+# Ejecutar script de despliegue
+./deploy.sh
 ```
 
----
+### 3. Verificar Despliegue
 
-### **2. Obtener un usuario por ID**
-**GET** `/api/auth/user/<id>`
+```bash
+# Verificar que el contenedor está corriendo
+sudo docker ps | grep api-login-container
 
-#### Headers:
-- `Admin-Key`: (Requerido) La clave de administrador para autenticar.
-
-#### Respuesta:
-```json
-{
-  "message": "Usuario obtenido exitosamente",
-  "user": {
-    "id": 1,
-    "username": "admin",
-    "password": "<hashed_password>",
-    "token_expiration": "2025-02-28 12:00:00",
-    "access_token": "<token>"
-  }
-}
+# Probar la API
+curl -X GET http://localhost/api/auth/users -H "Admin-Key: my_very_secret_key"
 ```
 
----
+## 📋 Configuración de Variables de Entorno
 
-### **3. Modificar un usuario**
-**PUT** `/api/auth/user/<id>`
+### Opción 1: Archivo .env (Recomendado)
 
-#### Headers:
-- `Admin-Key`: (Requerido) La clave de administrador para autenticar.
-
-#### Body:
-```json
-{
-  "username": "nuevo_username",
-  "password": "nueva_password"
-}
+```bash
+# Crear archivo .env
+cat > .env << EOF
+ADMIN_KEY=tu_clave_secreta_aqui
+DATABASE_PATH=/api_login/app/database
+EOF
 ```
 
-#### Respuesta:
-```json
-{
-  "message": "Usuario actualizado exitosamente",
-  "user": {
-    "id": 1,
-    "username": "nuevo_username",
-    "password": "<hashed_password>",
-    "token_expiration": "2025-02-28 12:00:00",
-    "access_token": "<token>"
-  }
-}
+### Opción 2: Variables de Entorno del Sistema
+
+```bash
+# Exportar variables
+export ADMIN_KEY="tu_clave_secreta"
+export DATABASE_PATH="/api_login/app/database"
+
+# Luego ejecutar despliegue
+./deploy.sh
 ```
 
----
+### Opción 3: Docker Compose
 
-### **4. Registrar un usuario**
-**POST** `/api/auth/register`
-
-#### Headers:
-- `Admin-Key`: (Requerido) La clave de administrador para autenticar.
-
-#### Body:
-```json
-{
-  "username": "nuevo_usuario",
-  "password": "password_seguro"
-}
+```bash
+# Las variables se cargan automáticamente desde .env
+docker-compose up -d
 ```
 
-#### Respuesta:
-```json
-{
-  "message": "Usuario registrado exitosamente",
-  "user": {
-    "id": 2,
-    "username": "nuevo_usuario",
-    "access_token": "<token>",
-    "token_expiration": "2025-02-28 12:00:00"
-  }
-}
+## 🔧 Comandos Útiles
+
+### Gestión del Contenedor
+
+```bash
+# Ver logs de la aplicación
+sudo docker logs -f api-login-container
+
+# Detener contenedor
+sudo docker stop api-login-container
+
+# Eliminar contenedor
+sudo docker rm api-login-container
+
+# Reiniciar contenedor
+sudo docker restart api-login-container
 ```
 
----
+### Gestión de la Base de Datos
 
-### **5. Eliminar un usuario**
-**DELETE** `/api/auth/user/<id>`
+```bash
+# Verificar estado de la base de datos
+sudo docker exec api-login-container ls -la /api_login/app/database/
 
-#### Headers:
-- `Admin-Key`: (Requerido) La clave de administrador para autenticar.
+# Crear directorio de base de datos manualmente (si es necesario)
+sudo docker exec api-login-container mkdir -p /api_login/app/database
+sudo docker exec api-login-container chmod 755 /api_login/app/database
 
-#### Respuesta:
-```json
-{
-  "message": "Usuario eliminado exitosamente",
-  "user_id": 2
-}
+# Ejecutar migraciones manualmente
+sudo docker exec api-login-container flask db upgrade
+
+# Crear base de datos manualmente (si es necesario)
+sudo docker exec api-login-container python -c "
+import sqlite3
+import os
+os.makedirs('/api_login/app/database', exist_ok=True)
+conn = sqlite3.connect('/api_login/app/database/users.db')
+conn.close()
+print('Base de datos creada exitosamente')
+"
 ```
 
----
+### Gestión de Volúmenes
 
-### **6. Login**
-**POST** `/api/auth/login`
+```bash
+# Ver volúmenes Docker
+sudo docker volume ls
 
-#### Body:
-```json
-{
-  "username": "admin",
-  "password": "password123"
-}
+# Inspeccionar volumen de datos
+sudo docker volume inspect api-login-data
+
+# Ver contenido del volumen
+sudo ls -la /var/lib/docker/volumes/api-login-data/_data/
+
+# Eliminar volumen (¡CUIDADO! Esto borra todos los datos)
+sudo docker volume rm api-login-data
 ```
 
-#### Respuesta:
-```json
-{
-  "message": "Login exitoso",
-  "access_token": "<token>",
-  "expires_in": "2025-02-28 12:00:00"
-}
+## 🐛 Solución de Problemas
+
+### Error: "unable to open database file"
+
+```bash
+# 1. Verificar que el directorio existe
+sudo docker exec api-login-container ls -la /api_login/app/database/
+
+# 2. Crear directorio si no existe
+sudo docker exec api-login-container mkdir -p /api_login/app/database
+
+# 3. Verificar permisos
+sudo docker exec api-login-container chmod 755 /api_login/app/database
+
+# 4. Crear base de datos manualmente
+sudo docker exec api-login-container python -c "
+import sqlite3
+import os
+os.makedirs('/api_login/app/database', exist_ok=True)
+conn = sqlite3.connect('/api_login/app/database/users.db')
+conn.close()
+print('Base de datos creada')
+"
+
+# 5. Ejecutar migraciones
+sudo docker exec api-login-container flask db upgrade
 ```
 
----
+### Error: "Acceso no autorizado"
 
-### **7. Logout**
-**POST** `/api/auth/logout`
+```bash
+# Verificar que ADMIN_KEY esté configurado correctamente
+sudo docker exec api-login-container env | grep ADMIN_KEY
 
-#### Respuesta:
-```json
-{
-  "message": "Logout exitoso"
-}
+# Usar la clave correcta en las peticiones
+curl -X GET http://localhost/api/auth/users -H "Admin-Key: my_very_secret_key"
 ```
 
----
+### Error: Variables de entorno no se cargan
 
-### **8. Verificar token**
-**POST** `/api/auth/verify-token`
+```bash
+# Verificar archivo .env
+cat .env
 
-#### Body:
-```json
-{
-  "access_token": "<token>"
-}
+# Verificar variables en el contenedor
+sudo docker exec api-login-container env | grep -E "(DATABASE_PATH|ADMIN_KEY)"
+
+# Recrear contenedor con variables correctas
+sudo docker stop api-login-container
+sudo docker rm api-login-container
+./deploy.sh
 ```
 
-#### Respuesta:
-- **Token válido:**
-```json
-{
-  "message": "Token válido",
-  "is_valid": true,
-  "username": "admin"
-}
-```
-- **Token inválido o expirado:**
-```json
-{
-  "message": "El token ha expirado",
-  "is_valid": false
-}
+## 📊 Monitoreo
+
+### Verificar Estado de la Aplicación
+
+```bash
+# Estado del contenedor
+sudo docker ps | grep api-login-container
+
+# Logs en tiempo real
+sudo docker logs -f api-login-container
+
+# Uso de recursos
+sudo docker stats api-login-container
 ```
 
----
+### Probar Endpoints
 
-## Consideraciones finales
+```bash
+# Obtener todos los usuarios
+curl -X GET http://localhost/api/auth/users -H "Admin-Key: my_very_secret_key"
 
-1. Asegúrate de proteger la `SECRET_KEY` y el `ADMIN_KEY`.
-2. Usa Gunicorn o un servidor WSGI para producción.
-3. Verifica los permisos de escritura en el directorio de la base de datos para evitar errores al crearla.
+# Crear usuario
+curl -X POST http://localhost/api/auth/register \
+  -H "Content-Type: application/json" \
+  -H "Admin-Key: my_very_secret_key" \
+  -d '{"username": "testuser", "password": "testpass123"}'
 
-Para cualquier problema o mejora, no dudes en contactarme.
+# Login
+curl -X POST http://localhost/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "testuser", "password": "testpass123"}'
+```
 
+## 🔒 Seguridad
+
+### Para Producción
+
+```bash
+# 1. Cambiar ADMIN_KEY por una clave segura
+export ADMIN_KEY="clave_super_secreta_produccion_$(openssl rand -hex 32)"
+
+# 2. Crear archivo .env.production
+cat > .env.production << EOF
+ADMIN_KEY=$ADMIN_KEY
+DATABASE_PATH=/api_login/app/database
+EOF
+
+# 3. Usar archivo de producción
+cp .env.production .env
+
+# 4. Desplegar
+./deploy.sh
+```
+
+### Backup de Base de Datos
+
+```bash
+# Crear backup manual
+sudo docker exec api-login-container cp /api_login/app/database/users.db /api_login/app/database/users.db.backup.$(date +%Y%m%d_%H%M%S)
+
+# Restaurar backup
+sudo docker exec api-login-container cp /api_login/app/database/users.db.backup.20251001_185437 /api_login/app/database/users.db
+```
+
+## 📁 Estructura del Proyecto
+
+```
+api_login/
+├── app/
+│   ├── __init__.py          # Configuración de Flask
+│   ├── config.py            # Configuración de la aplicación
+│   ├── database.py          # Configuración de SQLAlchemy
+│   ├── controllers/         # Controladores de la API
+│   ├── models/              # Modelos de datos
+│   └── utils/               # Utilidades
+├── migrations/              # Migraciones de base de datos
+├── deploy.sh               # Script de despliegue
+├── docker-compose.yml      # Configuración de Docker Compose
+├── Dockerfile              # Imagen de Docker
+├── .env                    # Variables de entorno (crear manualmente)
+├── env.example             # Ejemplo de variables de entorno
+└── README.md               # Este archivo
+```
+
+## 🆘 Soporte
+
+Si encuentras problemas:
+
+1. Verifica que el archivo `.env` existe y tiene la configuración correcta
+2. Revisa los logs del contenedor: `sudo docker logs api-login-container`
+3. Verifica que el directorio de la base de datos existe y tiene permisos correctos
+4. Asegúrate de que las variables de entorno se están cargando correctamente
+
+Para más información sobre los endpoints de la API, consulta la documentación en el código fuente.
