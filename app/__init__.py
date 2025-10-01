@@ -19,20 +19,11 @@ def create_app():
     app = Flask(__name__)
     CORS(app)
 
-    app.config['SECRET_KEY'] = os.getenv('ADMIN_KEY')
+    app.config['SECRET_KEY'] = os.getenv('ADMIN_KEY', 'my_very_secret_key')
 
 
-    is_production = os.getenv('FLASK_ENV') == 'production'
-
-    database_path = os.getenv(
-        'DATABASE_PATH' if is_production else 'DATABASE_PATH_DEV'
-    )
-
-    if not os.path.isabs(database_path):
-        basedir = os.path.abspath(os.path.dirname(__file__))
-        database_path = os.path.join(basedir, database_path)
-
-    # Configuración de SQLAlchemy
+    # Configuración de SQLAlchemy - usar ruta fija para Docker
+    database_path = '/api_login/app/database'
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}/users.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

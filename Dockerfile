@@ -10,6 +10,9 @@ COPY . /api_login
 
 ENV PYTHONPATH=/api_login
 ENV FLASK_APP=app:app
+ENV FLASK_ENV=production
+ENV DATABASE_PATH=/api_login/app/database
+ENV ADMIN_KEY=my_very_secret_key
 
 EXPOSE 80
 
