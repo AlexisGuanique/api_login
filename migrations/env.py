@@ -16,14 +16,18 @@ logger = logging.getLogger('alembic.env')
 
 
 def get_engine():
-    # Usar siempre la ruta fija para evitar problemas de configuración
+    # Usar variable de entorno con fallback
+    import os
     from sqlalchemy import create_engine
-    return create_engine('sqlite:////api_login/app/database/users.db')
+    database_path = os.getenv('DATABASE_PATH', '/api_login/app/database')
+    return create_engine(f'sqlite:///{database_path}/users.db')
 
 
 def get_engine_url():
-    # Usar siempre la URL fija
-    return 'sqlite:////api_login/app/database/users.db'
+    # Usar variable de entorno con fallback
+    import os
+    database_path = os.getenv('DATABASE_PATH', '/api_login/app/database')
+    return f'sqlite:///{database_path}/users.db'
 
 
 # add your model's MetaData object here

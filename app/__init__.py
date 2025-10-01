@@ -21,9 +21,8 @@ def create_app():
 
     app.config['SECRET_KEY'] = os.getenv('ADMIN_KEY', 'my_very_secret_key')
 
-
-    # Configuración de SQLAlchemy - usar ruta fija para Docker
-    database_path = '/api_login/app/database'
+    # Configuración de SQLAlchemy
+    database_path = os.getenv('DATABASE_PATH', '/api_login/app/database')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}/users.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

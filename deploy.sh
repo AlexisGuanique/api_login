@@ -29,13 +29,23 @@ sudo docker rm api-login-container 2>/dev/null || echo "Contenedor no existía"
 echo "🔨 Construyendo imagen..."
 sudo docker build -t api-login .
 
+# Cargar variables de entorno desde .env si existe
+if [ -f .env ]; then
+    echo "📋 Cargando variables de entorno desde .env..."
+    export $(cat .env | grep -v '^#' | xargs)
+else
+    echo "⚠️  Archivo .env no encontrado, usando valores por defecto"
+    export ADMIN_KEY=my_very_secret_key
+    export DATABASE_PATH=/api_login/app/database
+fi
+
 # Ejecutar contenedor con volumen
 echo "▶️  Ejecutando contenedor..."
 sudo docker run -d \
   -p 80:80 \
   -v api-login-data:/api_login/app/database \
-  -e DATABASE_PATH=/api_login/app/database \
-  -e ADMIN_KEY=my_very_secret_key \
+  -e DATABASE_PATH="$DATABASE_PATH" \
+  -e ADMIN_KEY="$ADMIN_KEY" \
   --name api-login-container \
   --restart unless-stopped \
   api-login
