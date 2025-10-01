@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /api_login
 
 ENV PYTHONPATH=/api_login
-ENV FLASK_APP=__init__
+ENV FLASK_APP=app:app
 
 EXPOSE 80
 
