@@ -199,10 +199,6 @@ def get_next_emails(user_id):
         if not isinstance(count, int) or count <= 0:
             return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
         
-        # Limitar la cantidad máxima para evitar sobrecarga
-        if count > 100:
-            return jsonify({"error": "No se pueden procesar más de 100 emails a la vez"}), 400
-        
         # Consulta optimizada: obtener emails ordenados por fecha de creación (FIFO)
         # with_for_update(skip_locked=True) previene condiciones de carrera
         emails = db.session.query(Email.id, Email.email, Email.created_at).filter_by(
