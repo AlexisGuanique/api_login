@@ -23,20 +23,30 @@ def get_all_accounts():
     accounts = Account.query.all()
 
     # Formatear la lista de cuentas para la respuesta
-    accounts_list = [
-        {
+    accounts_list = []
+    for account in accounts:
+        # Procesar cookie para devolverla como array JSON
+        cookie_data = account.cookie
+        try:
+            # Si es un string JSON, parsearlo
+            if isinstance(cookie_data, str):
+                cookie_data = json.loads(cookie_data)
+        except (json.JSONDecodeError, TypeError):
+            # Si no se puede parsear, mantener como string
+            pass
+        
+        account_data = {
             "id": account.id,
             "user_agent": account.user_agent,
             "email": account.email,
             "password": account.password,
-            "cookie": account.cookie,
+            "cookie": cookie_data,  # Ahora es un array JSON o string
             "created_at": account.created_at.isoformat() if account.created_at else None,
             "updated_at": account.updated_at.isoformat() if account.updated_at else None,
             "user_id": account.user_id,
             "user_username": account.user.username if account.user else None
         }
-        for account in accounts
-    ]
+        accounts_list.append(account_data)
 
     # Respuesta final
     return jsonify({
@@ -54,19 +64,29 @@ def get_user_accounts(user_id):
     user_accounts = Account.query.filter_by(user_id=user_id).all()
 
     # Formatear la lista de cuentas para la respuesta
-    accounts_list = [
-        {
+    accounts_list = []
+    for account in user_accounts:
+        # Procesar cookie para devolverla como array JSON
+        cookie_data = account.cookie
+        try:
+            # Si es un string JSON, parsearlo
+            if isinstance(cookie_data, str):
+                cookie_data = json.loads(cookie_data)
+        except (json.JSONDecodeError, TypeError):
+            # Si no se puede parsear, mantener como string
+            pass
+        
+        account_data = {
             "id": account.id,
             "user_agent": account.user_agent,
             "email": account.email,
             "password": account.password,
-            "cookie": account.cookie,
+            "cookie": cookie_data,  # Ahora es un array JSON o string
             "created_at": account.created_at.isoformat() if account.created_at else None,
             "updated_at": account.updated_at.isoformat() if account.updated_at else None,
             "user_id": account.user_id
         }
-        for account in user_accounts
-    ]
+        accounts_list.append(account_data)
 
     return jsonify({
         "message": "Cuentas del usuario obtenidas exitosamente",
@@ -242,12 +262,22 @@ def get_next_accounts(user_id):
         account_ids = []
         
         for account in accounts:
+            # Procesar cookie para devolverla como array JSON
+            cookie_data = account.cookie
+            try:
+                # Si es un string JSON, parsearlo
+                if isinstance(cookie_data, str):
+                    cookie_data = json.loads(cookie_data)
+            except (json.JSONDecodeError, TypeError):
+                # Si no se puede parsear, mantener como string
+                pass
+            
             account_data = {
                 'id': account.id,
                 'user_agent': account.user_agent,
                 'email': account.email,
                 'password': account.password,
-                'cookie': account.cookie,
+                'cookie': cookie_data,  # Ahora es un array JSON o string
                 'created_at': account.created_at.isoformat() if account.created_at else None,
                 'user_id': user_id
             }

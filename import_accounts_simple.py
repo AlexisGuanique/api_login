@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-Script para importar cuentas desde un archivo .txt a la base de datos
+Script para importar cuentas desde un archivo .txt usando la API local
 Formato esperado: User-Agent | Email | Password | Cookie
 """
 
 import os
 import sys
 import json
+import requests
 from datetime import datetime
-from app import create_app
-from app.models.account import Account
-from app.models.user import User
-from app.database import db
 
 def parse_account_line(line, line_number):
     """
@@ -56,9 +53,9 @@ def parse_account_line(line, line_number):
         'cookie': cookie
     }
 
-def import_accounts_from_file(file_path, user_id):
+def import_accounts_via_api(file_path, user_id, access_token, api_url="http://localhost:8080"):
     """
-    Importa cuentas desde un archivo .txt
+    Importa cuentas usando la API
     """
     if not os.path.exists(file_path):
         print(f"❌ Error: El archivo {file_path} no existe")
@@ -66,15 +63,8 @@ def import_accounts_from_file(file_path, user_id):
     
     print(f"📁 Leyendo archivo: {file_path}")
     print(f"👤 Usuario ID: {user_id}")
+    print(f"🌐 API URL: {api_url}")
     print("-" * 50)
-    
-    # Verificar que el usuario existe
-    user = User.query.get(user_id)
-    if not user:
-        print(f"❌ Error: Usuario con ID {user_id} no encontrado")
-        return False
-    
-    print(f"✅ Usuario encontrado: {user.username}")
     
     # Leer y procesar el archivo
     accounts_to_import = []
@@ -103,60 +93,53 @@ def import_accounts_from_file(file_path, user_id):
     print(f"   Total de líneas procesadas: {line_number}")
     print(f"   Cuentas válidas encontradas: {len(accounts_to_import)}")
     
-    # Verificar duplicados
-    emails = [acc['email'] for acc in accounts_to_import]
-    existing_accounts = Account.query.filter(
-        Account.email.in_(emails),
-        Account.user_id == user_id
-    ).all()
-    
-    existing_emails = [acc.email for acc in existing_accounts]
-    new_accounts = [acc for acc in accounts_to_import if acc['email'] not in existing_emails]
-    
-    print(f"   Cuentas ya existentes: {len(existing_emails)}")
-    print(f"   Cuentas nuevas a importar: {len(new_accounts)}")
-    
-    if existing_emails:
-        print(f"   Emails duplicados: {', '.join(existing_emails)}")
-    
-    if not new_accounts:
-        print("ℹ️  No hay cuentas nuevas para importar")
-        return True
-    
     # Confirmar importación
-    print(f"\n❓ ¿Deseas importar {len(new_accounts)} cuentas? (y/N): ", end="")
+    print(f"\n❓ ¿Deseas importar {len(accounts_to_import)} cuentas? (y/N): ", end="")
     response = input().strip().lower()
     
     if response not in ['y', 'yes', 'sí', 'si']:
         print("❌ Importación cancelada")
         return False
     
-    # Importar cuentas
-    print("\n🔄 Importando cuentas...")
-    imported_count = 0
+    # Importar cuentas usando la API
+    print("\n🔄 Importando cuentas vía API...")
     
     try:
-        for account_data in new_accounts:
-            new_account = Account(
-                user_agent=account_data['user_agent'],
-                email=account_data['email'],
-                password=account_data['password'],
-                cookie=account_data['cookie'],
-                user_id=user_id
-            )
-            db.session.add(new_account)
-            imported_count += 1
-            print(f"   ✅ {account_data['email']}")
+        # Preparar datos para la API
+        api_data = {
+            "access_token": access_token,
+            "accounts": accounts_to_import
+        }
         
-        db.session.commit()
-        print(f"\n🎉 ¡Importación completada!")
-        print(f"   Cuentas importadas: {imported_count}")
-        print(f"   Usuario: {user.username} (ID: {user_id})")
+        # Enviar petición a la API
+        response = requests.post(
+            f"{api_url}/api/accounts/save/{user_id}",
+            json=api_data,
+            headers={"Content-Type": "application/json"}
+        )
         
-        return True
-        
+        if response.status_code in [200, 201]:
+            result = response.json()
+            print(f"\n🎉 ¡Importación completada!")
+            print(f"   Mensaje: {result.get('message', 'Sin mensaje')}")
+            print(f"   Cuentas guardadas: {result.get('saved_count', 0)}")
+            print(f"   Duplicadas: {result.get('duplicate_count', 0)}")
+            print(f"   Total procesadas: {result.get('total_processed', 0)}")
+            
+            if result.get('duplicate_emails'):
+                print(f"   Emails duplicados: {', '.join(result['duplicate_emails'])}")
+            
+            return True
+        else:
+            print(f"❌ Error en la API: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"   Detalle: {error_data.get('error', 'Error desconocido')}")
+            except:
+                print(f"   Respuesta: {response.text}")
+            return False
+            
     except Exception as e:
-        db.session.rollback()
         print(f"❌ Error durante la importación: {str(e)}")
         return False
 
@@ -164,14 +147,14 @@ def main():
     """
     Función principal del script
     """
-    print("🚀 Script de Importación de Cuentas")
+    print("🚀 Script de Importación de Cuentas vía API")
     print("=" * 50)
     
     # Verificar argumentos
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 2:
         print("❌ Uso incorrecto")
-        print("📖 Uso: python import_accounts.py <archivo.txt> <user_id>")
-        print("📝 Ejemplo: python import_accounts.py accounts.txt 1")
+        print("📖 Uso: python import_accounts_simple.py <archivo.txt> [api_url]")
+        print("📝 Ejemplo: python import_accounts_simple.py accounts.txt http://localhost:8080")
         print("\n📋 Formato del archivo:")
         print("   User-Agent | Email | Password | Cookie")
         print("   # Líneas que empiecen con # son comentarios")
@@ -179,23 +162,18 @@ def main():
         sys.exit(1)
     
     file_path = sys.argv[1]
-    try:
-        user_id = int(sys.argv[2])
-    except ValueError:
-        print("❌ Error: user_id debe ser un número entero")
-        sys.exit(1)
+    api_url = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:8080"
     
-    # Configurar ruta absoluta de la base de datos antes de crear la app
-    import os
-    database_path = os.path.abspath('app/database')
-    os.environ['DATABASE_PATH'] = database_path
+    # Configuración fija
+    user_id = 2
+    access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiZXhwIjoxNzYxOTQyODI2fQ.Wps77E7VnL2GXiDXGfSvW2az8Fb19JPPg4uHMnHUapc"
     
-    # Crear aplicación Flask
-    app = create_app()
+    print(f"🔐 Usuario ID: {user_id}")
+    print(f"🌐 API: {api_url}")
     
-    with app.app_context():
-        success = import_accounts_from_file(file_path, user_id)
-        sys.exit(0 if success else 1)
+    # Importar cuentas
+    success = import_accounts_via_api(file_path, user_id, access_token, api_url)
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()
