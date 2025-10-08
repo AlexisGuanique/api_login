@@ -24,7 +24,10 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('ADMIN_KEY', 'my_very_secret_key')
 
     # Configuración de SQLAlchemy
-    database_path = os.getenv('DATABASE_PATH', '/api_login/app/database')
+    database_path = os.getenv('DATABASE_PATH', 'app/database')
+    # Asegurar que la ruta sea absoluta
+    if not os.path.isabs(database_path):
+        database_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), database_path)
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}/users.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
