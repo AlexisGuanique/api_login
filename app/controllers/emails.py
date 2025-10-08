@@ -504,26 +504,46 @@ def cleanup_old_completed_emails(user_id):
         # Obtener parámetros
         days_old = data.get('days_old', 7)  # Por defecto 7 días
         
-        if not isinstance(days_old, int) or days_old < 1:
-            return jsonify({"error": "days_old debe ser un número entero positivo"}), 400
+        # Permitir 0 días (limpiar emails de ayer y anteriores) y -1 para emails de hoy
+        if not isinstance(days_old, int) or days_old < -1:
+            return jsonify({"error": "days_old debe ser un número entero >= -1 (0=ayer y anteriores, -1=hoy, 1+=días atrás)"}), 400
         
         # Calcular fecha límite
         from datetime import datetime, timedelta
-        cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+        now = datetime.utcnow()
         
-        # Buscar emails completados antiguos
-        old_completed_emails = Email.query.filter(
-            Email.user_id == user_id,
-            Email.status == 'completed',
-            Email.created_at < cutoff_date
-        ).all()
+        if days_old == -1:
+            # Limpiar emails de hoy (desde inicio del día hasta ahora)
+            start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            old_completed_emails = Email.query.filter(
+                Email.user_id == user_id,
+                Email.status == 'completed',
+                Email.created_at >= start_of_day,
+                Email.created_at <= now
+            ).all()
+        else:
+            # Limpiar emails más antiguos que days_old días
+            cutoff_date = now - timedelta(days=days_old)
+            old_completed_emails = Email.query.filter(
+                Email.user_id == user_id,
+                Email.status == 'completed',
+                Email.created_at < cutoff_date
+            ).all()
         
         if not old_completed_emails:
+            # Determinar el mensaje según el tipo de limpieza
+            if days_old == -1:
+                message = "No hay emails completados de hoy para limpiar"
+                date_info = f"desde {start_of_day.isoformat()} hasta {now.isoformat()}"
+            else:
+                message = "No hay emails completados antiguos para limpiar"
+                date_info = f"anteriores a {cutoff_date.isoformat()}"
+            
             return jsonify({
-                "message": "No hay emails completados antiguos para limpiar",
+                "message": message,
                 "user_id": user_id,
                 "days_old": days_old,
-                "cutoff_date": cutoff_date.isoformat(),
+                "date_range": date_info,
                 "deleted_count": 0,
                 "emails_before": {
                     "total": Email.query.filter_by(user_id=user_id).count(),
@@ -544,11 +564,17 @@ def cleanup_old_completed_emails(user_id):
             "active": Email.query.filter_by(user_id=user_id, status='active').count()
         }
         
+        # Determinar información de fecha para el mensaje de éxito
+        if days_old == -1:
+            date_info = f"desde {start_of_day.isoformat()} hasta {now.isoformat()}"
+        else:
+            date_info = f"anteriores a {cutoff_date.isoformat()}"
+        
         return jsonify({
             "message": f"Limpieza completada exitosamente",
             "user_id": user_id,
             "days_old": days_old,
-            "cutoff_date": cutoff_date.isoformat(),
+            "date_range": date_info,
             "deleted_count": deleted_count,
             "emails_before": {
                 "total": stats_after["total"] + deleted_count,
