@@ -125,7 +125,7 @@ def save_emails(user_id):
     # Separar emails en categorías
     new_emails_list = []
     available_emails_list = []  # Emails con usage_count = 0 y status = 'active'
-    recycled_emails_list = []   # Emails que se van a reciclar (usage_count = 1 y 2)
+    recycled_emails_list = []   # Emails que se van a reciclar (usage_count = 1)
     completed_emails_list = []  # Emails completados que se van a reiniciar (status = 'completed')
     
     for email_address in emails_list:
@@ -139,8 +139,6 @@ def save_emails(user_id):
             elif existing_email.usage_count == 1 and existing_email.status == 'active':
                 recycled_emails_list.append(email_address)
             elif existing_email.usage_count == 2 and existing_email.status == 'active':
-                recycled_emails_list.append(email_address)
-            elif existing_email.usage_count == 3 and existing_email.status == 'active':
                 recycled_emails_list.append(email_address)
         else:
             new_emails_list.append(email_address)
@@ -172,15 +170,11 @@ def save_emails(user_id):
                 # Reiniciar de 2 a 1 (un uso disponible)
                 existing_email.usage_count = 1
                 recycled_emails.append(email_address)
-            elif existing_email.usage_count == 3:
-                # Reiniciar de 3 a 2 (dos usos disponibles)
-                existing_email.usage_count = 2
-                recycled_emails.append(email_address)
         
         # Reiniciar emails completados
         for email_address in completed_emails_list:
             existing_email = existing_emails_dict[email_address]
-            # Reiniciar desde completado: status = 'active', usage_count = 1 (disponible para dos usos más)
+            # Reiniciar desde completado: status = 'active', usage_count = 1 (disponible para un uso más)
             existing_email.status = 'active'
             existing_email.usage_count = 1
             restarted_emails.append(email_address)
@@ -196,7 +190,7 @@ def save_emails(user_id):
         if len(recycled_emails) > 0:
             message_parts.append(f"{len(recycled_emails)} reciclado(s)")
         if len(restarted_emails) > 0:
-            message_parts.append(f"{len(restarted_emails)} reiniciado(s) desde completados (2 usos disponibles)")
+            message_parts.append(f"{len(restarted_emails)} reiniciado(s) desde completados (1 uso disponible)")
         if len(available_emails_list) > 0:
             message_parts.append(f"{len(available_emails_list)} ya disponible(s)")
         
@@ -243,7 +237,7 @@ def save_emails(user_id):
         return jsonify({"error": f"Error al guardar los emails: {str(e)}"}), 500
 
 
-#! ENDPOINT PARA OBTENER EMAILS DISPONIBLES DE UN USUARIO (usage_count = 0, 1 y 2)
+#! ENDPOINT PARA OBTENER EMAILS DISPONIBLES DE UN USUARIO (usage_count = 0 y usage_count = 1)
 @emails_bp.route('/available/<int:user_id>', methods=['POST'])
 def get_available_emails(user_id):
     try:
@@ -273,11 +267,11 @@ def get_available_emails(user_id):
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
-        # Obtener emails disponibles (usage_count = 0, 1 o 2, y status = 'active')
+        # Obtener emails disponibles (usage_count = 0 o usage_count = 1, y status = 'active')
         available_emails = Email.query.filter(
             Email.user_id == user_id,
             Email.status == 'active',
-            Email.usage_count.in_([0, 1, 2])
+            Email.usage_count.in_([0, 1])
         ).order_by(Email.created_at.asc()).all()
         
         # Formatear la lista de emails para la respuesta
@@ -452,7 +446,7 @@ def rotate_completed_emails(user_id):
         rotated_count = 0
         for email in completed_emails:
             email.status = 'active'
-            email.usage_count = 1  # Disponible para dos usos más
+            email.usage_count = 1  # Disponible para un uso más
             rotated_count += 1
         
         db.session.commit()
@@ -645,7 +639,6 @@ def get_cleanup_stats(user_id):
         usage_0 = Email.query.filter_by(user_id=user_id, usage_count=0).count()
         usage_1 = Email.query.filter_by(user_id=user_id, usage_count=1).count()
         usage_2 = Email.query.filter_by(user_id=user_id, usage_count=2).count()
-        usage_3 = Email.query.filter_by(user_id=user_id, usage_count=3).count()
         
         # Emails completados antiguos (que se eliminarían)
         old_completed_emails = Email.query.filter(
@@ -677,8 +670,7 @@ def get_cleanup_stats(user_id):
                 "usage_breakdown": {
                     "usage_0": usage_0,
                     "usage_1": usage_1,
-                    "usage_2": usage_2,
-                    "usage_3": usage_3
+                    "usage_2": usage_2
                 }
             },
             "cleanup_info": {
@@ -743,7 +735,6 @@ def get_email_count(user_id):
         available_count = db.session.query(Email).filter_by(user_id=user_id, usage_count=0, status='active').count()
         used_once_count = db.session.query(Email).filter_by(user_id=user_id, usage_count=1, status='active').count()
         used_twice_count = db.session.query(Email).filter_by(user_id=user_id, usage_count=2, status='active').count()
-        used_thrice_count = db.session.query(Email).filter_by(user_id=user_id, usage_count=3, status='active').count()
         completed_count = db.session.query(Email).filter_by(user_id=user_id, status='completed').count()
         
         return jsonify({
@@ -753,13 +744,11 @@ def get_email_count(user_id):
             "available_count": available_count,
             "used_once_count": used_once_count,
             "used_twice_count": used_twice_count,
-            "used_thrice_count": used_thrice_count,
             "completed_count": completed_count,
             "breakdown": {
                 "disponibles": available_count,
                 "usados_una_vez": used_once_count,
                 "usados_dos_veces": used_twice_count,
-                "usados_tres_veces": used_thrice_count,
                 "completados": completed_count
             }
         }), 200
@@ -783,12 +772,12 @@ def get_next_emails(user_id):
         if not isinstance(count, int) or count <= 0:
             return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
         
-        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count < 3) ordenados por fecha de creación (FIFO)
+        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count < 2) ordenados por fecha de creación (FIFO)
         # with_for_update(skip_locked=True) previene condiciones de carrera
         emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
             Email.user_id == user_id,
             Email.status == 'active',
-            Email.usage_count < 3
+            Email.usage_count < 2
         ).order_by(Email.created_at.asc()).with_for_update(skip_locked=True).limit(count).all()
         
         if not emails:
@@ -811,13 +800,13 @@ def get_next_emails(user_id):
                 'created_at': email.created_at.isoformat() if email.created_at else None,
                 'user_id': user_id,
                 'usage_count': email.usage_count + 1,  # Mostrar el nuevo usage_count
-                'status': 'completed' if email.usage_count == 2 else 'active'  # Mostrar el nuevo status
+                'status': 'completed' if email.usage_count == 1 else 'active'  # Mostrar el nuevo status
             }
             emails_data.append(email_data)
             email_ids.append(email.id)
             
-            # Si ya se usó dos veces, marcar para completar después del tercer uso
-            if email.usage_count == 2:
+            # Si ya se usó una vez, marcar para completar después del segundo uso
+            if email.usage_count == 1:
                 emails_to_complete.append(email.id)
         
         # Incrementar usage_count para todos los emails obtenidos
@@ -841,16 +830,16 @@ def get_next_emails(user_id):
         
         if len(emails_data) == 1:
             if completed_count == 1:
-                message = "Email obtenido y completado (tercer uso finalizado, disponible para reciclaje)"
+                message = "Email obtenido y completado (segundo uso finalizado, disponible para reciclaje)"
             else:
-                message = "Email obtenido (primer o segundo uso, disponible para reciclaje)"
+                message = "Email obtenido (primer uso, disponible para reciclaje)"
         else:
             if completed_count > 0 and active_count > 0:
-                message = f"{len(emails_data)} emails obtenidos: {completed_count} completados (tercer uso), {active_count} activos para reciclaje"
+                message = f"{len(emails_data)} emails obtenidos: {completed_count} completados (segundo uso), {active_count} activos para reciclaje"
             elif completed_count > 0:
-                message = f"{len(emails_data)} emails obtenidos y completados (tercer uso finalizado, disponibles para reciclaje)"
+                message = f"{len(emails_data)} emails obtenidos y completados (segundo uso finalizado, disponibles para reciclaje)"
             else:
-                message = f"{len(emails_data)} emails obtenidos (primer o segundo uso, disponibles para reciclaje)"
+                message = f"{len(emails_data)} emails obtenidos (primer uso, disponibles para reciclaje)"
         
         response_data = {
             "message": message,
