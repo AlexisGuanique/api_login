@@ -8,12 +8,37 @@ import sqlite3
 import os
 
 def fix_emails():
-    # Ruta a la base de datos (ajusta según tu configuración)
-    db_path = 'app/database/users.db'
+    # Posibles rutas de la base de datos
+    possible_paths = [
+        'app/database/users.db',
+        'database/users.db',
+        'users.db',
+        'instance/users.db',
+        'app/users.db'
+    ]
     
-    if not os.path.exists(db_path):
-        print(f"❌ No se encontró la base de datos en: {db_path}")
+    db_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            db_path = path
+            break
+    
+    if not db_path:
+        print("❌ No se encontró la base de datos en ninguna de las ubicaciones:")
+        for path in possible_paths:
+            print(f"   - {path}")
+        print("\n🔍 Buscando archivos .db en el directorio actual...")
+        
+        # Buscar archivos .db en el directorio actual y subdirectorios
+        for root, dirs, files in os.walk('.'):
+            for file in files:
+                if file.endswith('.db'):
+                    full_path = os.path.join(root, file)
+                    print(f"   - {full_path}")
+        
         return
+    
+    print(f"✅ Base de datos encontrada en: {db_path}")
     
     try:
         # Conectar a la base de datos
