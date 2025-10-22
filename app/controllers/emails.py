@@ -859,3 +859,114 @@ def get_next_emails(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Error al obtener los emails: {str(e)}"}), 500
+
+
+#! ENDPOINT PARA ELIMINAR EMAILS (ACTIVOS Y COMPLETADOS) - SOLO ADMIN
+@emails_bp.route('/delete/<int:user_id>', methods=['POST'])
+def delete_emails(user_id):
+    try:
+        # Verificar Admin-Key en headers
+        admin_key = request.headers.get('Admin-Key')
+        
+        # Verificar si el Admin-Key es válido
+        if admin_key != os.getenv('ADMIN_KEY'):
+            return jsonify({"error": "Acceso no autorizado. Admin-Key requerido"}), 403
+        
+        # Obtener datos del body
+        data = request.json or {}
+        
+        # Obtener parámetros
+        count = data.get('count', 10)  # Por defecto eliminar 10 emails
+        order = data.get('order', 'newest')  # Por defecto desde los más nuevos
+        status_filter = data.get('status', 'all')  # Por defecto todos los estados
+        
+        # Validar parámetros
+        if not isinstance(count, int) or count <= 0:
+            return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
+        
+        if order not in ['newest', 'oldest']:
+            return jsonify({"error": "El parámetro 'order' debe ser 'newest' o 'oldest'"}), 400
+        
+        if status_filter not in ['all', 'active', 'completed']:
+            return jsonify({"error": "El parámetro 'status' debe ser 'all', 'active' o 'completed'"}), 400
+        
+        # Construir consulta base
+        query = Email.query.filter_by(user_id=user_id)
+        
+        # Aplicar filtro de status si no es 'all'
+        if status_filter != 'all':
+            query = query.filter_by(status=status_filter)
+        
+        # Aplicar ordenamiento
+        if order == 'newest':
+            # Desde los más nuevos hacia atrás (descendente)
+            query = query.order_by(Email.created_at.desc())
+        else:  # oldest
+            # Desde los más viejos hacia adelante (ascendente)
+            query = query.order_by(Email.created_at.asc())
+        
+        # Obtener emails a eliminar
+        emails_to_delete = query.limit(count).all()
+        
+        if not emails_to_delete:
+            return jsonify({
+                "message": "No hay emails para eliminar con los criterios especificados",
+                "user_id": user_id,
+                "count": count,
+                "order": order,
+                "status_filter": status_filter,
+                "deleted_count": 0
+            }), 200
+        
+        # Obtener estadísticas antes de eliminar
+        stats_before = {
+            "total": Email.query.filter_by(user_id=user_id).count(),
+            "active": Email.query.filter_by(user_id=user_id, status='active').count(),
+            "completed": Email.query.filter_by(user_id=user_id, status='completed').count()
+        }
+        
+        # Preparar información de emails a eliminar
+        emails_info = []
+        for email in emails_to_delete:
+            emails_info.append({
+                "id": email.id,
+                "email": email.email,
+                "status": email.status,
+                "usage_count": email.usage_count,
+                "created_at": email.created_at.isoformat() if email.created_at else None
+            })
+        
+        # Eliminar emails
+        email_ids = [email.id for email in emails_to_delete]
+        deleted_count = Email.query.filter(Email.id.in_(email_ids)).delete(synchronize_session=False)
+        db.session.commit()
+        
+        # Obtener estadísticas después de eliminar
+        stats_after = {
+            "total": Email.query.filter_by(user_id=user_id).count(),
+            "active": Email.query.filter_by(user_id=user_id, status='active').count(),
+            "completed": Email.query.filter_by(user_id=user_id, status='completed').count()
+        }
+        
+        # Determinar mensaje según el orden
+        order_text = "más nuevos hacia atrás" if order == 'newest' else "más viejos hacia adelante"
+        status_text = "todos los estados" if status_filter == 'all' else f"estado '{status_filter}'"
+        
+        return jsonify({
+            "message": f"Eliminación completada exitosamente",
+            "user_id": user_id,
+            "deleted_count": deleted_count,
+            "requested_count": count,
+            "order": order,
+            "status_filter": status_filter,
+            "description": f"Se eliminaron {deleted_count} emails desde los {order_text} con {status_text}",
+            "emails_deleted": emails_info[:20],  # Mostrar solo los primeros 20
+            "total_emails_deleted": len(emails_info),
+            "stats_before": stats_before,
+            "stats_after": stats_after,
+            "space_freed": f"{deleted_count} emails eliminados"
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error durante la eliminación: {str(e)}"}), 500
