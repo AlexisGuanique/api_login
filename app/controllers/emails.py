@@ -109,29 +109,24 @@ def save_emails(user_id):
         else:
             valid_emails.append(email)
     
-    # Eliminar dominios duplicados de la lista enviada (mantener solo el primero)
+    # Mantener todos los emails, incluyendo duplicados
     original_count = len(emails_list)
-    emails_list = list(dict.fromkeys(emails_list))  # Mantiene el orden y elimina duplicados
-    duplicates_removed = original_count - len(emails_list)
+    duplicates_removed = 0  # No eliminamos duplicados
     
-    # Verificar si algún email ya existe para este usuario
-    existing_emails = Email.query.filter(
-        Email.email.in_(emails_list),
-        Email.user_id == user_id
-    ).all()
-    
-    # Crear diccionario para acceso rápido por email
-    existing_emails_dict = {email.email: email for email in existing_emails}
-    
-    # Separar emails en categorías
+    # Procesar cada email individualmente (incluyendo duplicados)
     new_emails_list = []
     available_emails_list = []  # Emails con usage_count = 0 y status = 'active'
     recycled_emails_list = []   # Emails que se van a reciclar (usage_count = 1)
     completed_emails_list = []  # Emails completados que se van a reiniciar (status = 'completed')
     
     for email_address in emails_list:
-        if email_address in existing_emails_dict:
-            existing_email = existing_emails_dict[email_address]
+        # Buscar si existe un email con este dominio para este usuario
+        existing_email = Email.query.filter(
+            Email.email == email_address,
+            Email.user_id == user_id
+        ).first()
+        
+        if existing_email:
             if existing_email.status == 'completed':
                 # Email completado - reiniciar completamente
                 completed_emails_list.append(email_address)
@@ -144,12 +139,12 @@ def save_emails(user_id):
         else:
             new_emails_list.append(email_address)
     
-    # Crear nuevos emails solo para los que no existen
+    # Crear nuevos emails para cada instancia (incluyendo duplicados)
     new_emails = []
     recycled_emails = []
     restarted_emails = []
     try:
-        # Crear emails nuevos
+        # Crear emails nuevos (uno por cada instancia)
         for email_address in new_emails_list:
             new_email = Email(
                 email=email_address,
@@ -160,9 +155,12 @@ def save_emails(user_id):
             new_emails.append(new_email)
             db.session.add(new_email)
         
-        # Reciclar emails existentes activos
+        # Reciclar emails existentes activos (uno por cada instancia)
         for email_address in recycled_emails_list:
-            existing_email = existing_emails_dict[email_address]
+            existing_email = Email.query.filter(
+                Email.email == email_address,
+                Email.user_id == user_id
+            ).first()
             if existing_email.usage_count == 1:
                 # Reiniciar de 1 a 0 (disponible para usar)
                 existing_email.usage_count = 0
@@ -172,9 +170,12 @@ def save_emails(user_id):
                 existing_email.usage_count = 1
                 recycled_emails.append(email_address)
         
-        # Reiniciar emails completados
+        # Reiniciar emails completados (uno por cada instancia)
         for email_address in completed_emails_list:
-            existing_email = existing_emails_dict[email_address]
+            existing_email = Email.query.filter(
+                Email.email == email_address,
+                Email.user_id == user_id
+            ).first()
             # Reiniciar desde completado: status = 'active', usage_count = 1 (disponible para un uso más)
             existing_email.status = 'active'
             existing_email.usage_count = 1
