@@ -968,3 +968,60 @@ def delete_emails(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Error durante la eliminación: {str(e)}"}), 500
+
+
+#! ENDPOINT PARA CORREGIR EMAILS INCONSISTENTES (usage_count > 0 y status = 'active')
+@emails_bp.route('/fix-inconsistent/<int:user_id>', methods=['POST'])
+def fix_inconsistent_emails(user_id):
+    try:
+        # Verificar Admin-Key en headers
+        admin_key = request.headers.get('Admin-Key')
+        
+        # Verificar si el Admin-Key es válido
+        if admin_key != os.getenv('ADMIN_KEY'):
+            return jsonify({"error": "Acceso no autorizado. Admin-Key requerido"}), 403
+        
+        # Buscar emails inconsistentes (usage_count > 0 y status = 'active')
+        inconsistent_emails = Email.query.filter(
+            Email.user_id == user_id,
+            Email.usage_count > 0,
+            Email.status == 'active'
+        ).all()
+        
+        if not inconsistent_emails:
+            return jsonify({
+                "message": "No hay emails inconsistentes para corregir",
+                "user_id": user_id,
+                "fixed_count": 0
+            }), 200
+        
+        # Corregir emails inconsistentes: marcar como 'completed'
+        fixed_count = 0
+        fixed_emails = []
+        
+        for email in inconsistent_emails:
+            email.status = 'completed'
+            fixed_emails.append({
+                "id": email.id,
+                "email": email.email,
+                "old_status": "active",
+                "new_status": "completed",
+                "usage_count": email.usage_count,
+                "created_at": email.created_at.isoformat() if email.created_at else None
+            })
+            fixed_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": f"Corrección completada exitosamente",
+            "user_id": user_id,
+            "fixed_count": fixed_count,
+            "emails_fixed": fixed_emails[:20],  # Mostrar solo los primeros 20
+            "total_emails_fixed": len(fixed_emails),
+            "note": "Emails con usage_count > 0 ahora tienen status = 'completed'"
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error durante la corrección: {str(e)}"}), 500
