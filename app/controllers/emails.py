@@ -826,6 +826,7 @@ def delete_emails(user_id):
         count = data.get('count', 10)  # Por defecto eliminar 10 emails
         order = data.get('order', 'newest')  # Por defecto desde los más nuevos
         status_filter = data.get('status', 'all')  # Por defecto todos los estados
+        usage_filter = data.get('usage_filter', None)  # Filtro por usage_count (opcional)
         
         # Validar parámetros
         if not isinstance(count, int) or count <= 0:
@@ -837,12 +838,45 @@ def delete_emails(user_id):
         if status_filter not in ['all', 'active', 'completed']:
             return jsonify({"error": "El parámetro 'status' debe ser 'all', 'active' o 'completed'"}), 400
         
+        # Validar filtro de usage_count
+        if usage_filter is not None:
+            if isinstance(usage_filter, int):
+                # Filtro por valor específico
+                if usage_filter < 0:
+                    return jsonify({"error": "El parámetro 'usage_filter' debe ser un número entero >= 0"}), 400
+            elif isinstance(usage_filter, dict):
+                # Filtro por rango {min: X, max: Y}
+                if 'min' not in usage_filter and 'max' not in usage_filter:
+                    return jsonify({"error": "El parámetro 'usage_filter' debe ser un número entero o un objeto con 'min' y/o 'max'"}), 400
+                if 'min' in usage_filter and (not isinstance(usage_filter['min'], int) or usage_filter['min'] < 0):
+                    return jsonify({"error": "El parámetro 'usage_filter.min' debe ser un número entero >= 0"}), 400
+                if 'max' in usage_filter and (not isinstance(usage_filter['max'], int) or usage_filter['max'] < 0):
+                    return jsonify({"error": "El parámetro 'usage_filter.max' debe ser un número entero >= 0"}), 400
+                if 'min' in usage_filter and 'max' in usage_filter and usage_filter['min'] > usage_filter['max']:
+                    return jsonify({"error": "El parámetro 'usage_filter.min' no puede ser mayor que 'usage_filter.max'"}), 400
+            else:
+                return jsonify({"error": "El parámetro 'usage_filter' debe ser un número entero o un objeto con 'min' y/o 'max'"}), 400
+        
         # Construir consulta base
         query = Email.query.filter_by(user_id=user_id)
         
         # Aplicar filtro de status si no es 'all'
         if status_filter != 'all':
             query = query.filter_by(status=status_filter)
+        
+        # Aplicar filtro de usage_count si se especifica
+        if usage_filter is not None:
+            if isinstance(usage_filter, int):
+                # Filtro por valor específico
+                query = query.filter_by(usage_count=usage_filter)
+            elif isinstance(usage_filter, dict):
+                # Filtro por rango
+                if 'min' in usage_filter and 'max' in usage_filter:
+                    query = query.filter(Email.usage_count >= usage_filter['min'], Email.usage_count <= usage_filter['max'])
+                elif 'min' in usage_filter:
+                    query = query.filter(Email.usage_count >= usage_filter['min'])
+                elif 'max' in usage_filter:
+                    query = query.filter(Email.usage_count <= usage_filter['max'])
         
         # Aplicar ordenamiento
         if order == 'newest':
@@ -862,6 +896,7 @@ def delete_emails(user_id):
                 "count": count,
                 "order": order,
                 "status_filter": status_filter,
+                "usage_filter": usage_filter,
                 "deleted_count": 0
             }), 200
         
@@ -899,6 +934,21 @@ def delete_emails(user_id):
         order_text = "más nuevos hacia atrás" if order == 'newest' else "más viejos hacia adelante"
         status_text = "todos los estados" if status_filter == 'all' else f"estado '{status_filter}'"
         
+        # Determinar texto del filtro de uso
+        if usage_filter is None:
+            usage_text = "cualquier uso"
+        elif isinstance(usage_filter, int):
+            usage_text = f"uso {usage_filter}"
+        elif isinstance(usage_filter, dict):
+            if 'min' in usage_filter and 'max' in usage_filter:
+                usage_text = f"uso entre {usage_filter['min']} y {usage_filter['max']}"
+            elif 'min' in usage_filter:
+                usage_text = f"uso >= {usage_filter['min']}"
+            elif 'max' in usage_filter:
+                usage_text = f"uso <= {usage_filter['max']}"
+        else:
+            usage_text = "cualquier uso"
+        
         return jsonify({
             "message": f"Eliminación completada exitosamente",
             "user_id": user_id,
@@ -906,7 +956,8 @@ def delete_emails(user_id):
             "requested_count": count,
             "order": order,
             "status_filter": status_filter,
-            "description": f"Se eliminaron {deleted_count} emails desde los {order_text} con {status_text}",
+            "usage_filter": usage_filter,
+            "description": f"Se eliminaron {deleted_count} emails desde los {order_text} con {status_text} y {usage_text}",
             "emails_deleted": emails_info[:20],  # Mostrar solo los primeros 20
             "total_emails_deleted": len(emails_info),
             "stats_before": stats_before,
