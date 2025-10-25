@@ -109,9 +109,10 @@ def save_emails(user_id):
         else:
             valid_emails.append(email)
     
-    # Verificar dominios duplicados en la lista enviada
-    if len(emails_list) != len(set(emails_list)):
-        return jsonify({"error": "No se permiten dominios duplicados en la misma petición"}), 400
+    # Eliminar dominios duplicados de la lista enviada (mantener solo el primero)
+    original_count = len(emails_list)
+    emails_list = list(dict.fromkeys(emails_list))  # Mantiene el orden y elimina duplicados
+    duplicates_removed = original_count - len(emails_list)
     
     # Verificar si algún email ya existe para este usuario
     existing_emails = Email.query.filter(
@@ -193,6 +194,8 @@ def save_emails(user_id):
             message_parts.append(f"{len(restarted_emails)} reiniciado(s) desde completados (1 uso disponible)")
         if len(available_emails_list) > 0:
             message_parts.append(f"{len(available_emails_list)} ya disponible(s)")
+        if duplicates_removed > 0:
+            message_parts.append(f"{duplicates_removed} duplicado(s) eliminado(s)")
         
         if len(message_parts) > 1:
             message = f"Procesamiento completado: {', '.join(message_parts)}"
@@ -208,6 +211,7 @@ def save_emails(user_id):
             "restarted_count": len(restarted_emails),
             "available_count": len(available_emails_list),
             "invalid_format_count": len(invalid_emails),
+            "duplicates_removed": duplicates_removed,
             "total_processed": len(emails_list)
         }
         
