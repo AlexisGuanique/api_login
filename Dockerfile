@@ -14,4 +14,4 @@ ENV FLASK_ENV=production
 
 EXPOSE 80
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:80", "app:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:80", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
