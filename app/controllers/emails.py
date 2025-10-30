@@ -8,6 +8,7 @@ from app.models.email import Email
 from app.models.user import User
 from app.database import db
 from app.utils.auth import token_required
+from sqlalchemy import func
 
 emails_bp = Blueprint('emails', __name__, url_prefix='/api/emails')
 
@@ -743,13 +744,13 @@ def get_next_emails(user_id):
         if not isinstance(count, int) or count <= 0:
             return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
         
-        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count = 0) ordenados por fecha de creación (FIFO)
+        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count = 0) en orden aleatorio
         # with_for_update(skip_locked=True) previene condiciones de carrera
         emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
             Email.user_id == user_id,
             Email.status == 'active',
             Email.usage_count == 0
-        ).order_by(Email.created_at.asc()).with_for_update(skip_locked=True).limit(count).all()
+        ).order_by(func.random()).with_for_update(skip_locked=True).limit(count).all()
         
         if not emails:
             return jsonify({
