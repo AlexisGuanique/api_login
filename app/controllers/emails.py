@@ -229,7 +229,13 @@ def get_available_emails(user_id):
         
         # Verificar el token
         try:
-            token_data = jwt.decode(access_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # Decodificar sin verificar exp automáticamente - la verificación real se hace con token_expiration
+            token_data = jwt.decode(
+                access_token, 
+                current_app.config['SECRET_KEY'], 
+                algorithms=['HS256'],
+                options={"verify_exp": False}
+            )
             token_username = token_data.get('username')
             
             # Buscar el usuario por username para obtener su ID
@@ -240,9 +246,11 @@ def get_available_emails(user_id):
             # Verificar que el token pertenece al usuario solicitado
             if user.id != user_id:
                 return jsonify({"error": "Token no válido para este usuario"}), 401
+            
+            # Verificar si el token ha expirado según la base de datos (fuente de verdad)
+            if user.token_expiration and datetime.utcnow() > user.token_expiration:
+                return jsonify({"error": "Token expirado"}), 401
                 
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expirado"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
@@ -289,7 +297,13 @@ def cleanup_completed_emails(user_id):
         
         # Verificar el token
         try:
-            token_data = jwt.decode(access_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # Decodificar sin verificar exp automáticamente - la verificación real se hace con token_expiration
+            token_data = jwt.decode(
+                access_token, 
+                current_app.config['SECRET_KEY'], 
+                algorithms=['HS256'],
+                options={"verify_exp": False}
+            )
             token_username = token_data.get('username')
             
             # Buscar el usuario por username para obtener su ID
@@ -300,9 +314,11 @@ def cleanup_completed_emails(user_id):
             # Verificar que el token pertenece al usuario solicitado
             if user.id != user_id:
                 return jsonify({"error": "Token no válido para este usuario"}), 401
+            
+            # Verificar si el token ha expirado según la base de datos (fuente de verdad)
+            if user.token_expiration and datetime.utcnow() > user.token_expiration:
+                return jsonify({"error": "Token expirado"}), 401
                 
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expirado"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
@@ -385,7 +401,13 @@ def rotate_completed_emails(user_id):
         
         # Verificar el token
         try:
-            token_data = jwt.decode(access_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # Decodificar sin verificar exp automáticamente - la verificación real se hace con token_expiration
+            token_data = jwt.decode(
+                access_token, 
+                current_app.config['SECRET_KEY'], 
+                algorithms=['HS256'],
+                options={"verify_exp": False}
+            )
             token_username = token_data.get('username')
             
             # Buscar el usuario por username para obtener su ID
@@ -396,9 +418,11 @@ def rotate_completed_emails(user_id):
             # Verificar que el token pertenece al usuario solicitado
             if user.id != user_id:
                 return jsonify({"error": "Token no válido para este usuario"}), 401
+            
+            # Verificar si el token ha expirado según la base de datos (fuente de verdad)
+            if user.token_expiration and datetime.utcnow() > user.token_expiration:
+                return jsonify({"error": "Token expirado"}), 401
                 
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expirado"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
@@ -463,7 +487,13 @@ def cleanup_old_completed_emails(user_id):
         
         # Verificar el token
         try:
-            token_data = jwt.decode(access_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # Decodificar sin verificar exp automáticamente - la verificación real se hace con token_expiration
+            token_data = jwt.decode(
+                access_token, 
+                current_app.config['SECRET_KEY'], 
+                algorithms=['HS256'],
+                options={"verify_exp": False}
+            )
             token_username = token_data.get('username')
             
             # Buscar el usuario por username para obtener su ID
@@ -474,9 +504,11 @@ def cleanup_old_completed_emails(user_id):
             # Verificar que el token pertenece al usuario solicitado
             if user.id != user_id:
                 return jsonify({"error": "Token no válido para este usuario"}), 401
+            
+            # Verificar si el token ha expirado según la base de datos (fuente de verdad)
+            if user.token_expiration and datetime.utcnow() > user.token_expiration:
+                return jsonify({"error": "Token expirado"}), 401
                 
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expirado"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
@@ -582,7 +614,13 @@ def get_cleanup_stats(user_id):
         
         # Verificar el token
         try:
-            token_data = jwt.decode(access_token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # Decodificar sin verificar exp automáticamente - la verificación real se hace con token_expiration
+            token_data = jwt.decode(
+                access_token, 
+                current_app.config['SECRET_KEY'], 
+                algorithms=['HS256'],
+                options={"verify_exp": False}
+            )
             token_username = token_data.get('username')
             
             # Buscar el usuario por username para obtener su ID
@@ -593,9 +631,11 @@ def get_cleanup_stats(user_id):
             # Verificar que el token pertenece al usuario solicitado
             if user.id != user_id:
                 return jsonify({"error": "Token no válido para este usuario"}), 401
+            
+            # Verificar si el token ha expirado según la base de datos (fuente de verdad)
+            if user.token_expiration and datetime.utcnow() > user.token_expiration:
+                return jsonify({"error": "Token expirado"}), 401
                 
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expirado"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
