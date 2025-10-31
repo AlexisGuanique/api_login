@@ -2,7 +2,7 @@ import jwt
 import os
 import re
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from app.models.email import Email
 from app.models.user import User
@@ -330,7 +330,6 @@ def cleanup_completed_emails(user_id):
             return jsonify({"error": "days_old debe ser un número entero positivo"}), 400
         
         # Calcular fecha límite
-        from datetime import datetime, timedelta
         cutoff_date = datetime.utcnow() - timedelta(days=days_old)
         
         # Buscar emails completados antiguos
@@ -520,7 +519,6 @@ def cleanup_old_completed_emails(user_id):
             return jsonify({"error": "days_old debe ser un número entero >= -1 (0=ayer y anteriores, -1=hoy, 1+=días atrás)"}), 400
         
         # Calcular fecha límite
-        from datetime import datetime, timedelta
         now = datetime.utcnow()
         
         if days_old == -1:
@@ -646,7 +644,6 @@ def get_cleanup_stats(user_id):
             return jsonify({"error": "days_old debe ser un número entero positivo"}), 400
         
         # Calcular fecha límite
-        from datetime import datetime, timedelta
         cutoff_date = datetime.utcnow() - timedelta(days=days_old)
         
         # Estadísticas generales
