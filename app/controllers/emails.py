@@ -747,12 +747,31 @@ def get_email_count(user_id):
     try:
         # Contar emails del usuario por estado de uso y status
         total_count = db.session.query(Email).filter_by(user_id=user_id).count()
+        
+        # Emails disponibles (usage_count < 2 y status='active')
         available_count = db.session.query(Email).filter(
             Email.user_id == user_id,
             Email.status == 'active',
             Email.usage_count < 2
         ).count()
-        completed_count = db.session.query(Email).filter_by(user_id=user_id, status='completed').count()
+        
+        # Desglose detallado por usage_count
+        no_usage_count = db.session.query(Email).filter(
+            Email.user_id == user_id,
+            Email.status == 'active',
+            Email.usage_count == 0
+        ).count()
+        
+        one_usage_count = db.session.query(Email).filter(
+            Email.user_id == user_id,
+            Email.status == 'active',
+            Email.usage_count == 1
+        ).count()
+        
+        completed_count = db.session.query(Email).filter_by(
+            user_id=user_id, 
+            status='completed'
+        ).count()
         
         return jsonify({
             "message": "Cantidad de emails obtenida exitosamente",
@@ -761,8 +780,10 @@ def get_email_count(user_id):
             "available_count": available_count,
             "completed_count": completed_count,
             "breakdown": {
-                "disponibles": available_count,
-                "completados": completed_count
+                "sin_uso": no_usage_count,
+                "con_1_uso": one_usage_count,
+                "completados": completed_count,
+                "disponibles": available_count  # Mantener compatibilidad
             }
         }), 200
         
