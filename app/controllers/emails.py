@@ -1068,7 +1068,7 @@ def delete_emails(user_id):
         return jsonify({"error": f"Error durante la eliminación: {str(e)}"}), 500
 
 
-#! ENDPOINT PARA CORREGIR EMAILS INCONSISTENTES (usage_count >= 2 y status = 'active')
+#! ENDPOINT PARA CORREGIR EMAILS INCONSISTENTES Y NORMALIZAR COMPLETADOS
 @emails_bp.route('/fix-inconsistent/<int:user_id>', methods=['POST'])
 def fix_inconsistent_emails(user_id):
     try:
@@ -1079,6 +1079,11 @@ def fix_inconsistent_emails(user_id):
         if admin_key != os.getenv('ADMIN_KEY'):
             return jsonify({"error": "Acceso no autorizado. Admin-Key requerido"}), 403
         
+        # Obtener parámetros opcionales
+        data = request.json or {}
+        normalize_completed = data.get('normalize_completed', True)  # Por defecto normalizar completados
+        max_normalize = data.get('max_normalize', 1000)  # Máximo emails a normalizar por petición
+        
         # Buscar emails inconsistentes (usage_count >= 2 y status = 'active')
         # Con 2 usos, solo emails con usage_count >= 2 y status='active' son inconsistentes
         inconsistent_emails = Email.query.filter(
@@ -1087,11 +1092,24 @@ def fix_inconsistent_emails(user_id):
             Email.status == 'active'
         ).all()
         
-        if not inconsistent_emails:
+        # Buscar emails completados para normalizar (si está habilitado)
+        completed_emails_to_normalize = []
+        if normalize_completed:
+            if not isinstance(max_normalize, int) or max_normalize < 1:
+                return jsonify({"error": "max_normalize debe ser un número entero positivo"}), 400
+            
+            completed_emails_to_normalize = Email.query.filter(
+                Email.user_id == user_id,
+                Email.status == 'completed'
+            ).order_by(Email.created_at.asc()).limit(max_normalize).all()
+        
+        # Si no hay emails para corregir/normalizar
+        if not inconsistent_emails and not completed_emails_to_normalize:
             return jsonify({
-                "message": "No hay emails inconsistentes para corregir",
+                "message": "No hay emails inconsistentes o completados para corregir/normalizar",
                 "user_id": user_id,
-                "fixed_count": 0
+                "fixed_count": 0,
+                "normalized_count": 0
             }), 200
         
         # Corregir emails inconsistentes: marcar como 'completed'
@@ -1110,17 +1128,48 @@ def fix_inconsistent_emails(user_id):
             })
             fixed_count += 1
         
+        # Normalizar emails completados: darles un uso más (status='active', usage_count=1)
+        normalized_count = 0
+        normalized_emails = []
+        
+        for email in completed_emails_to_normalize:
+            old_usage_count = email.usage_count  # Guardar el valor antes de modificarlo
+            email.status = 'active'
+            email.usage_count = 1  # Darles un uso más disponible
+            normalized_emails.append({
+                "id": email.id,
+                "email": email.email,
+                "old_status": "completed",
+                "new_status": "active",
+                "old_usage_count": old_usage_count,
+                "new_usage_count": 1,
+                "created_at": email.created_at.isoformat() if email.created_at else None
+            })
+            normalized_count += 1
+        
         db.session.commit()
         
+        # Construir mensaje
+        message_parts = []
+        if fixed_count > 0:
+            message_parts.append(f"{fixed_count} email(s) inconsistente(s) corregido(s)")
+        if normalized_count > 0:
+            message_parts.append(f"{normalized_count} email(s) completado(s) normalizado(s) (con 1 uso disponible)")
+        
+        message = f"Procesamiento completado: {', '.join(message_parts)}" if message_parts else "No se procesaron emails"
+        
         return jsonify({
-            "message": f"Corrección completada exitosamente",
+            "message": message,
             "user_id": user_id,
             "fixed_count": fixed_count,
-            "emails_fixed": fixed_emails[:20],  # Mostrar solo los primeros 20
+            "normalized_count": normalized_count,
+            "emails_fixed": fixed_emails[:20] if fixed_emails else [],  # Mostrar solo los primeros 20
+            "emails_normalized": normalized_emails[:20] if normalized_emails else [],  # Mostrar solo los primeros 20
             "total_emails_fixed": len(fixed_emails),
-            "note": "Emails con usage_count >= 2 ahora tienen status = 'completed'"
+            "total_emails_normalized": len(normalized_emails),
+            "note": "Emails inconsistentes (usage_count >= 2 y status='active') marcados como 'completed'. Emails completados normalizados a 'active' con usage_count=1"
         }), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error durante la corrección: {str(e)}"}), 500
+        return jsonify({"error": f"Error durante la corrección/normalización: {str(e)}"}), 500
