@@ -1,6 +1,7 @@
 import jwt
 import os
 import re
+import random
 
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
@@ -806,13 +807,19 @@ def get_next_emails(user_id):
         if not isinstance(count, int) or count <= 0:
             return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
         
-        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count < 2) en orden aleatorio
+        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count < 2) en orden completamente aleatorio
+        # Usar func.random() para asegurar aleatoriedad total, no emails consecutivos
         # with_for_update(skip_locked=True) previene condiciones de carrera
         emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
             Email.user_id == user_id,
             Email.status == 'active',
             Email.usage_count < 2
         ).order_by(func.random()).with_for_update(skip_locked=True).limit(count).all()
+        
+        # Asegurar aleatoriedad adicional mezclando los resultados si hay múltiples emails
+        # Esto garantiza que los emails no sean consecutivos incluso si la consulta los devuelve en cierto orden
+        if len(emails) > 1:
+            random.shuffle(emails)
         
         if not emails:
             return jsonify({
