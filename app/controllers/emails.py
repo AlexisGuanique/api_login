@@ -117,7 +117,7 @@ def save_emails(user_id):
     
     # Procesar cada email individualmente (incluyendo duplicados)
     new_emails_list = []
-    available_emails_list = []  # Emails con usage_count < 2 y status = 'active' (disponibles para usar)
+    available_emails_list = []  # Emails con usage_count = 0 y status = 'active' (disponibles para usar)
     completed_emails_list = []  # Emails completados que se van a reiniciar (status = 'completed')
     
     for email_address in emails_list:
@@ -131,8 +131,8 @@ def save_emails(user_id):
             if existing_email.status == 'completed':
                 # Email completado - reiniciar completamente
                 completed_emails_list.append(email_address)
-            elif existing_email.status == 'active' and existing_email.usage_count < 2:
-                # Email disponible: tiene menos de 2 usos y está activo
+            elif existing_email.status == 'active' and existing_email.usage_count == 0:
+                # Email disponible: sin uso y está activo
                 available_emails_list.append(email_address)
         else:
             new_emails_list.append(email_address)
@@ -217,7 +217,7 @@ def save_emails(user_id):
         return jsonify({"error": f"Error al guardar los emails: {str(e)}"}), 500
 
 
-#! ENDPOINT PARA OBTENER EMAILS DISPONIBLES DE UN USUARIO (usage_count < 2 y status = 'active')
+#! ENDPOINT PARA OBTENER EMAILS DISPONIBLES DE UN USUARIO (usage_count = 0 y status = 'active')
 @emails_bp.route('/available/<int:user_id>', methods=['POST'])
 def get_available_emails(user_id):
     try:
@@ -255,11 +255,11 @@ def get_available_emails(user_id):
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
-        # Obtener emails disponibles (usage_count < 2 y status = 'active')
+        # Obtener emails disponibles (usage_count = 0 y status = 'active')
         available_emails = Email.query.filter(
             Email.user_id == user_id,
             Email.status == 'active',
-            Email.usage_count < 2
+            Email.usage_count == 0
         ).order_by(Email.created_at.asc()).all()
         
         # Formatear la lista de emails para la respuesta
@@ -749,11 +749,11 @@ def get_email_count(user_id):
         # Contar emails del usuario por estado de uso y status
         total_count = db.session.query(Email).filter_by(user_id=user_id).count()
         
-        # Emails disponibles (usage_count < 2 y status='active')
+        # Emails disponibles (usage_count = 0 y status='active')
         available_count = db.session.query(Email).filter(
             Email.user_id == user_id,
             Email.status == 'active',
-            Email.usage_count < 2
+            Email.usage_count == 0
         ).count()
         
         # Desglose detallado por usage_count
@@ -807,13 +807,13 @@ def get_next_emails(user_id):
         if not isinstance(count, int) or count <= 0:
             return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
         
-        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count < 2) en orden completamente aleatorio
+        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count = 0) en orden completamente aleatorio
         # Usar func.random() para asegurar aleatoriedad total, no emails consecutivos
         # with_for_update(skip_locked=True) previene condiciones de carrera
         emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
             Email.user_id == user_id,
             Email.status == 'active',
-            Email.usage_count < 2
+            Email.usage_count == 0
         ).order_by(func.random()).with_for_update(skip_locked=True).limit(count).all()
         
         # Asegurar aleatoriedad adicional mezclando los resultados si hay múltiples emails
@@ -829,77 +829,42 @@ def get_next_emails(user_id):
                 "requested_count": count
             }), 200
         
-        # Crear lista de emails para la respuesta y procesar según usage_count
+        # Crear lista de emails para la respuesta
         emails_data = []
-        email_ids_to_increment = []  # Emails con usage_count=0 que pasarán a 1
-        email_ids_to_complete = []   # Emails con usage_count=1 que pasarán a 2 y completed
+        email_ids = []
         
         for email in emails:
-            if email.usage_count == 0:
-                # Primer uso: incrementar a 1, mantener active
-                email_data = {
-                    'id': email.id,
-                    'email': email.email,
-                    'created_at': email.created_at.isoformat() if email.created_at else None,
-                    'user_id': user_id,
-                    'usage_count': 1,  # Primer uso
-                    'status': 'active'  # Aún disponible para segundo uso
-                }
-                emails_data.append(email_data)
-                email_ids_to_increment.append(email.id)
-            elif email.usage_count == 1:
-                # Segundo uso: incrementar a 2, marcar como completed
-                email_data = {
-                    'id': email.id,
-                    'email': email.email,
-                    'created_at': email.created_at.isoformat() if email.created_at else None,
-                    'user_id': user_id,
-                    'usage_count': 2,  # Segundo uso - completado
-                    'status': 'completed'  # Completado después de 2 usos
-                }
-                emails_data.append(email_data)
-                email_ids_to_complete.append(email.id)
+            email_data = {
+                'id': email.id,
+                'email': email.email,
+                'created_at': email.created_at.isoformat() if email.created_at else None,
+                'user_id': user_id,
+                'usage_count': 1,  # Siempre será 1 después del uso
+                'status': 'completed'  # Siempre se marca como completado después de 1 uso
+            }
+            emails_data.append(email_data)
+            email_ids.append(email.id)
         
-        # Actualizar emails según su estado
-        if email_ids_to_increment:
-            # Incrementar usage_count de 0 a 1, mantener status='active'
-            db.session.query(Email).filter(Email.id.in_(email_ids_to_increment)).update(
-                {Email.usage_count: 1}, 
-                synchronize_session=False
-            )
-        
-        if email_ids_to_complete:
-            # Incrementar usage_count de 1 a 2, cambiar status='completed'
-            db.session.query(Email).filter(Email.id.in_(email_ids_to_complete)).update(
-                {Email.usage_count: 2, Email.status: 'completed'}, 
-                synchronize_session=False
-            )
+        # Marcar todos los emails como completados (usage_count = 1, status = 'completed')
+        db.session.query(Email).filter(Email.id.in_(email_ids)).update(
+            {Email.usage_count: 1, Email.status: 'completed'}, 
+            synchronize_session=False
+        )
         
         db.session.commit()
         
         # Mensaje según la cantidad procesada
         if len(emails_data) == 1:
-            if email_ids_to_complete:
-                message = "Email obtenido y completado (2 usos finalizados, disponible para reinicio)"
-            else:
-                message = "Email obtenido (1 uso de 2, aún disponible para un uso más)"
+            message = "Email obtenido y completado (uso finalizado, disponible para reinicio)"
         else:
-            completed_count = len(email_ids_to_complete)
-            active_count = len(email_ids_to_increment)
-            if completed_count > 0 and active_count > 0:
-                message = f"{len(emails_data)} emails obtenidos: {completed_count} completado(s) (2 usos) y {active_count} con 1 uso (disponible para segundo uso)"
-            elif completed_count > 0:
-                message = f"{len(emails_data)} emails obtenidos y completados (2 usos finalizados, disponibles para reinicio)"
-            else:
-                message = f"{len(emails_data)} emails obtenidos (1 uso de 2, aún disponibles para un uso más)"
+            message = f"{len(emails_data)} emails obtenidos y completados (uso finalizado, disponibles para reinicio)"
         
         response_data = {
             "message": message,
             "emails": emails_data,
             "count": len(emails_data),
             "requested_count": count,
-            "completed_count": len(email_ids_to_complete),
-            "active_after_first_use": len(email_ids_to_increment)
+            "completed_count": len(emails_data)
         }
         
         # Si se pidieron más emails de los disponibles, agregar información
@@ -1075,7 +1040,7 @@ def delete_emails(user_id):
         return jsonify({"error": f"Error durante la eliminación: {str(e)}"}), 500
 
 
-#! ENDPOINT PARA CORREGIR EMAILS INCONSISTENTES Y NORMALIZAR COMPLETADOS
+#! ENDPOINT PARA CORREGIR EMAILS INCONSISTENTES (usage_count = 1 y status = 'active')
 @emails_bp.route('/fix-inconsistent/<int:user_id>', methods=['POST'])
 def fix_inconsistent_emails(user_id):
     try:
@@ -1086,37 +1051,19 @@ def fix_inconsistent_emails(user_id):
         if admin_key != os.getenv('ADMIN_KEY'):
             return jsonify({"error": "Acceso no autorizado. Admin-Key requerido"}), 403
         
-        # Obtener parámetros opcionales
-        data = request.json or {}
-        normalize_completed = data.get('normalize_completed', True)  # Por defecto normalizar completados
-        max_normalize = data.get('max_normalize', 1000)  # Máximo emails a normalizar por petición
-        
-        # Buscar emails inconsistentes (usage_count >= 2 y status = 'active')
-        # Con 2 usos, solo emails con usage_count >= 2 y status='active' son inconsistentes
+        # Buscar emails inconsistentes (usage_count = 1 y status = 'active')
+        # Con 1 uso, emails con usage_count = 1 y status='active' son inconsistentes (deberían estar completed)
         inconsistent_emails = Email.query.filter(
             Email.user_id == user_id,
-            Email.usage_count >= 2,
+            Email.usage_count == 1,
             Email.status == 'active'
         ).all()
         
-        # Buscar emails completados para normalizar (si está habilitado)
-        completed_emails_to_normalize = []
-        if normalize_completed:
-            if not isinstance(max_normalize, int) or max_normalize < 1:
-                return jsonify({"error": "max_normalize debe ser un número entero positivo"}), 400
-            
-            completed_emails_to_normalize = Email.query.filter(
-                Email.user_id == user_id,
-                Email.status == 'completed'
-            ).order_by(Email.created_at.asc()).limit(max_normalize).all()
-        
-        # Si no hay emails para corregir/normalizar
-        if not inconsistent_emails and not completed_emails_to_normalize:
+        if not inconsistent_emails:
             return jsonify({
-                "message": "No hay emails inconsistentes o completados para corregir/normalizar",
+                "message": "No hay emails inconsistentes para corregir",
                 "user_id": user_id,
-                "fixed_count": 0,
-                "normalized_count": 0
+                "fixed_count": 0
             }), 200
         
         # Corregir emails inconsistentes: marcar como 'completed'
@@ -1135,48 +1082,17 @@ def fix_inconsistent_emails(user_id):
             })
             fixed_count += 1
         
-        # Normalizar emails completados: darles un uso más (status='active', usage_count=1)
-        normalized_count = 0
-        normalized_emails = []
-        
-        for email in completed_emails_to_normalize:
-            old_usage_count = email.usage_count  # Guardar el valor antes de modificarlo
-            email.status = 'active'
-            email.usage_count = 1  # Darles un uso más disponible
-            normalized_emails.append({
-                "id": email.id,
-                "email": email.email,
-                "old_status": "completed",
-                "new_status": "active",
-                "old_usage_count": old_usage_count,
-                "new_usage_count": 1,
-                "created_at": email.created_at.isoformat() if email.created_at else None
-            })
-            normalized_count += 1
-        
         db.session.commit()
         
-        # Construir mensaje
-        message_parts = []
-        if fixed_count > 0:
-            message_parts.append(f"{fixed_count} email(s) inconsistente(s) corregido(s)")
-        if normalized_count > 0:
-            message_parts.append(f"{normalized_count} email(s) completado(s) normalizado(s) (con 1 uso disponible)")
-        
-        message = f"Procesamiento completado: {', '.join(message_parts)}" if message_parts else "No se procesaron emails"
-        
         return jsonify({
-            "message": message,
+            "message": f"Corrección completada exitosamente",
             "user_id": user_id,
             "fixed_count": fixed_count,
-            "normalized_count": normalized_count,
-            "emails_fixed": fixed_emails[:20] if fixed_emails else [],  # Mostrar solo los primeros 20
-            "emails_normalized": normalized_emails[:20] if normalized_emails else [],  # Mostrar solo los primeros 20
+            "emails_fixed": fixed_emails[:20],  # Mostrar solo los primeros 20
             "total_emails_fixed": len(fixed_emails),
-            "total_emails_normalized": len(normalized_emails),
-            "note": "Emails inconsistentes (usage_count >= 2 y status='active') marcados como 'completed'. Emails completados normalizados a 'active' con usage_count=1"
+            "note": "Emails con usage_count = 1 y status='active' ahora tienen status = 'completed'"
         }), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error durante la corrección/normalización: {str(e)}"}), 500
+        return jsonify({"error": f"Error durante la corrección: {str(e)}"}), 500
