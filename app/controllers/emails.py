@@ -13,6 +13,47 @@ from sqlalchemy import func
 
 emails_bp = Blueprint('emails', __name__, url_prefix='/api/emails')
 
+# Constante para el tamaño del lote (SQLite tiene límite de ~999 parámetros)
+BATCH_SIZE = 500  # Usar 500 para estar seguros, dejando margen
+
+def process_batch_updates(email_ids, update_dict):
+    """
+    Procesa actualizaciones en lotes para evitar exceder límites de SQLite.
+    
+    Args:
+        email_ids: Lista de IDs de emails a actualizar
+        update_dict: Diccionario con los campos a actualizar
+        
+    Returns:
+        Número total de registros actualizados
+    """
+    total_updated = 0
+    for i in range(0, len(email_ids), BATCH_SIZE):
+        batch_ids = email_ids[i:i + BATCH_SIZE]
+        updated = db.session.query(Email).filter(Email.id.in_(batch_ids)).update(
+            update_dict, 
+            synchronize_session=False
+        )
+        total_updated += updated
+    return total_updated
+
+def process_batch_deletes(email_ids):
+    """
+    Procesa eliminaciones en lotes para evitar exceder límites de SQLite.
+    
+    Args:
+        email_ids: Lista de IDs de emails a eliminar
+        
+    Returns:
+        Número total de registros eliminados
+    """
+    total_deleted = 0
+    for i in range(0, len(email_ids), BATCH_SIZE):
+        batch_ids = email_ids[i:i + BATCH_SIZE]
+        deleted = Email.query.filter(Email.id.in_(batch_ids)).delete(synchronize_session=False)
+        total_deleted += deleted
+    return total_deleted
+
 #! ENDPOINT PARA OBTENER TODOS LOS EMAILS (Solo Admin)
 @emails_bp.route('/', methods=['GET'])
 def get_all_emails():
@@ -371,8 +412,9 @@ def cleanup_completed_emails(user_id):
             }), 200
         
         # Eliminar emails completados antiguos
+        # Usar procesamiento por lotes para evitar exceder límites de SQLite
         email_ids = [email.id for email in old_completed_emails]
-        deleted_count = Email.query.filter(Email.id.in_(email_ids)).delete(synchronize_session=False)
+        deleted_count = process_batch_deletes(email_ids)
         db.session.commit()
         
         return jsonify({
@@ -563,8 +605,9 @@ def cleanup_old_completed_emails(user_id):
             }), 200
         
         # Eliminar emails completados antiguos
+        # Usar procesamiento por lotes para evitar exceder límites de SQLite
         email_ids = [email.id for email in old_completed_emails]
-        deleted_count = Email.query.filter(Email.id.in_(email_ids)).delete(synchronize_session=False)
+        deleted_count = process_batch_deletes(email_ids)
         db.session.commit()
         
         # Estadísticas después de la limpieza
@@ -846,10 +889,8 @@ def get_next_emails(user_id):
             email_ids.append(email.id)
         
         # Marcar todos los emails como completados (usage_count = 1, status = 'completed')
-        db.session.query(Email).filter(Email.id.in_(email_ids)).update(
-            {Email.usage_count: 1, Email.status: 'completed'}, 
-            synchronize_session=False
-        )
+        # Usar procesamiento por lotes para evitar exceder límites de SQLite
+        process_batch_updates(email_ids, {Email.usage_count: 1, Email.status: 'completed'})
         
         db.session.commit()
         
@@ -989,8 +1030,9 @@ def delete_emails(user_id):
             })
         
         # Eliminar emails
+        # Usar procesamiento por lotes para evitar exceder límites de SQLite
         email_ids = [email.id for email in emails_to_delete]
-        deleted_count = Email.query.filter(Email.id.in_(email_ids)).delete(synchronize_session=False)
+        deleted_count = process_batch_deletes(email_ids)
         db.session.commit()
         
         # Obtener estadísticas después de eliminar

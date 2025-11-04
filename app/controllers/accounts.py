@@ -10,6 +10,26 @@ from app.utils.auth import token_required
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
 
+# Constante para el tamaño del lote (SQLite tiene límite de ~999 parámetros)
+BATCH_SIZE = 500  # Usar 500 para estar seguros, dejando margen
+
+def process_batch_deletes(account_ids):
+    """
+    Procesa eliminaciones en lotes para evitar exceder límites de SQLite.
+    
+    Args:
+        account_ids: Lista de IDs de accounts a eliminar
+        
+    Returns:
+        Número total de registros eliminados
+    """
+    total_deleted = 0
+    for i in range(0, len(account_ids), BATCH_SIZE):
+        batch_ids = account_ids[i:i + BATCH_SIZE]
+        deleted = Account.query.filter(Account.id.in_(batch_ids)).delete(synchronize_session=False)
+        total_deleted += deleted
+    return total_deleted
+
 #! ENDPOINT PARA OBTENER TODAS LAS CUENTAS (Solo Admin)
 @accounts_bp.route('/', methods=['GET'])
 def get_all_accounts():
@@ -285,7 +305,8 @@ def get_next_accounts(user_id):
             account_ids.append(account.id)
         
         # Eliminar accounts procesados usando solo los IDs para mayor eficiencia
-        db.session.query(Account).filter(Account.id.in_(account_ids)).delete(synchronize_session=False)
+        # Usar procesamiento por lotes para evitar exceder límites de SQLite
+        deleted_count = process_batch_deletes(account_ids)
         db.session.commit()
         
         # Mensaje según la cantidad procesada
