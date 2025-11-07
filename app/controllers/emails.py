@@ -156,9 +156,12 @@ def save_emails(user_id):
     original_count = len(emails_list)
     duplicates_removed = 0  # No eliminamos duplicados
     
+    # Determinar si el usuario permite 2 usos (solo usuario ID 3)
+    allows_two_uses = (user_id == 3)
+    
     # Procesar cada email individualmente (incluyendo duplicados)
     new_emails_list = []
-    available_emails_list = []  # Emails con usage_count = 0 y status = 'active' (disponibles para usar)
+    available_emails_list = []  # Emails disponibles para usar
     completed_emails_list = []  # Emails completados que se van a reiniciar (status = 'completed')
     
     for email_address in emails_list:
@@ -172,9 +175,16 @@ def save_emails(user_id):
             if existing_email.status == 'completed':
                 # Email completado - reiniciar completamente
                 completed_emails_list.append(email_address)
-            elif existing_email.status == 'active' and existing_email.usage_count == 0:
-                # Email disponible: sin uso y está activo
-                available_emails_list.append(email_address)
+            elif existing_email.status == 'active':
+                # Email activo - verificar si está disponible según el tipo de usuario
+                if allows_two_uses:
+                    # Usuario 3: disponible si usage_count = 0 o 1
+                    if existing_email.usage_count in [0, 1]:
+                        available_emails_list.append(email_address)
+                else:
+                    # Otros usuarios: disponible solo si usage_count = 0
+                    if existing_email.usage_count == 0:
+                        available_emails_list.append(email_address)
         else:
             new_emails_list.append(email_address)
     
@@ -200,6 +210,8 @@ def save_emails(user_id):
                 Email.user_id == user_id
             ).first()
             # Reiniciar desde completado: status = 'active', usage_count = 0 (disponible para usar)
+            # Para usuario 3, esto permite 2 usos nuevamente
+            # Para otros usuarios, permite 1 uso
             existing_email.status = 'active'
             existing_email.usage_count = 0
             restarted_emails.append(email_address)
@@ -258,7 +270,9 @@ def save_emails(user_id):
         return jsonify({"error": f"Error al guardar los emails: {str(e)}"}), 500
 
 
-#! ENDPOINT PARA OBTENER EMAILS DISPONIBLES DE UN USUARIO (usage_count = 0 y status = 'active')
+#! ENDPOINT PARA OBTENER EMAILS DISPONIBLES DE UN USUARIO
+# Usuario ID 3: usage_count = 0 o 1 y status = 'active' (permite 2 usos)
+# Otros usuarios: usage_count = 0 y status = 'active' (solo 1 uso)
 @emails_bp.route('/available/<int:user_id>', methods=['POST'])
 def get_available_emails(user_id):
     try:
@@ -296,12 +310,24 @@ def get_available_emails(user_id):
         except jwt.InvalidTokenError:
             return jsonify({"error": "Token inválido"}), 401
         
-        # Obtener emails disponibles (usage_count = 0 y status = 'active')
-        available_emails = Email.query.filter(
-            Email.user_id == user_id,
-            Email.status == 'active',
-            Email.usage_count == 0
-        ).order_by(Email.created_at.asc()).all()
+        # Determinar si el usuario permite 2 usos (solo usuario ID 3)
+        allows_two_uses = (user_id == 3)
+        
+        # Obtener emails disponibles según el tipo de usuario
+        if allows_two_uses:
+            # Usuario 3: emails con usage_count = 0 o 1 y status = 'active' (permite 2 usos)
+            available_emails = Email.query.filter(
+                Email.user_id == user_id,
+                Email.status == 'active',
+                Email.usage_count.in_([0, 1])
+            ).order_by(Email.created_at.asc()).all()
+        else:
+            # Otros usuarios: solo emails con usage_count = 0 y status = 'active' (solo 1 uso)
+            available_emails = Email.query.filter(
+                Email.user_id == user_id,
+                Email.status == 'active',
+                Email.usage_count == 0
+            ).order_by(Email.created_at.asc()).all()
         
         # Formatear la lista de emails para la respuesta
         emails_list = [
@@ -789,15 +815,27 @@ def get_used_emails(user_id):
 @token_required
 def get_email_count(user_id):
     try:
+        # Determinar si el usuario permite 2 usos (solo usuario ID 3)
+        allows_two_uses = (user_id == 3)
+        
         # Contar emails del usuario por estado de uso y status
         total_count = db.session.query(Email).filter_by(user_id=user_id).count()
         
-        # Emails disponibles (usage_count = 0 y status='active')
-        available_count = db.session.query(Email).filter(
-            Email.user_id == user_id,
-            Email.status == 'active',
-            Email.usage_count == 0
-        ).count()
+        # Emails disponibles según el tipo de usuario
+        if allows_two_uses:
+            # Usuario 3: emails con usage_count = 0 o 1 y status='active' (permite 2 usos)
+            available_count = db.session.query(Email).filter(
+                Email.user_id == user_id,
+                Email.status == 'active',
+                Email.usage_count.in_([0, 1])
+            ).count()
+        else:
+            # Otros usuarios: solo emails con usage_count = 0 y status='active' (solo 1 uso)
+            available_count = db.session.query(Email).filter(
+                Email.user_id == user_id,
+                Email.status == 'active',
+                Email.usage_count == 0
+            ).count()
         
         # Desglose detallado por usage_count
         no_usage_count = db.session.query(Email).filter(
@@ -821,7 +859,7 @@ def get_email_count(user_id):
             "message": "Cantidad de emails obtenida exitosamente",
             "user_id": user_id,
             "total_count": total_count,
-            "available_count": available_count,
+            "available_count": available_count,  # Ahora incluye emails con 0 y 1 uso
             "completed_count": completed_count,
             "breakdown": {
                 "sin_uso": no_usage_count,
@@ -850,14 +888,28 @@ def get_next_emails(user_id):
         if not isinstance(count, int) or count <= 0:
             return jsonify({"error": "El parámetro 'count' debe ser un número entero positivo"}), 400
         
-        # Consulta optimizada: obtener emails activos disponibles (status = 'active' y usage_count = 0) en orden completamente aleatorio
+        # Determinar si el usuario permite 2 usos (solo usuario ID 3)
+        allows_two_uses = (user_id == 3)
+        
+        # Consulta optimizada: obtener emails activos disponibles
+        # Usuario ID 3: status = 'active' y usage_count = 0 o 1 (permite 2 usos)
+        # Otros usuarios: status = 'active' y usage_count = 0 (solo 1 uso)
         # Usar func.random() para asegurar aleatoriedad total, no emails consecutivos
         # with_for_update(skip_locked=True) previene condiciones de carrera
-        emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
-            Email.user_id == user_id,
-            Email.status == 'active',
-            Email.usage_count == 0
-        ).order_by(func.random()).with_for_update(skip_locked=True).limit(count).all()
+        if allows_two_uses:
+            # Usuario 3: permitir emails con 0 o 1 uso
+            emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
+                Email.user_id == user_id,
+                Email.status == 'active',
+                Email.usage_count.in_([0, 1])
+            ).order_by(func.random()).with_for_update(skip_locked=True).limit(count).all()
+        else:
+            # Otros usuarios: solo emails con 0 usos
+            emails = db.session.query(Email.id, Email.email, Email.created_at, Email.usage_count, Email.status).filter(
+                Email.user_id == user_id,
+                Email.status == 'active',
+                Email.usage_count == 0
+            ).order_by(func.random()).with_for_update(skip_locked=True).limit(count).all()
         
         # Asegurar aleatoriedad adicional mezclando los resultados si hay múltiples emails
         # Esto garantiza que los emails no sean consecutivos incluso si la consulta los devuelve en cierto orden
@@ -872,41 +924,93 @@ def get_next_emails(user_id):
                 "requested_count": count
             }), 200
         
-        # Crear lista de emails para la respuesta
+        # Crear lista de emails para la respuesta y procesar actualizaciones
         emails_data = []
-        email_ids = []
+        emails_to_update_1_use = []  # Emails que pasarán de 0 a 1 uso
+        emails_to_complete = []  # Emails que pasarán a completados
         
         for email in emails:
+            current_usage = email.usage_count
+            
+            if allows_two_uses:
+                # Usuario 3: permite 2 usos
+                if current_usage == 0:
+                    # Primer uso: incrementar a 1, mantener activo
+                    new_usage = 1
+                    new_status = 'active'
+                    emails_to_update_1_use.append(email.id)
+                elif current_usage == 1:
+                    # Segundo uso: incrementar a 2, marcar como completado
+                    new_usage = 2
+                    new_status = 'completed'
+                    emails_to_complete.append(email.id)
+            else:
+                # Otros usuarios: solo 1 uso, completar inmediatamente
+                if current_usage == 0:
+                    new_usage = 1
+                    new_status = 'completed'
+                    emails_to_complete.append(email.id)
+            
             email_data = {
                 'id': email.id,
                 'email': email.email,
                 'created_at': email.created_at.isoformat() if email.created_at else None,
                 'user_id': user_id,
-                'usage_count': 1,  # Siempre será 1 después del uso
-                'status': 'completed'  # Siempre se marca como completado después de 1 uso
+                'usage_count': new_usage,
+                'status': new_status
             }
             emails_data.append(email_data)
-            email_ids.append(email.id)
         
-        # Marcar todos los emails como completados (usage_count = 1, status = 'completed')
-        # Usar procesamiento por lotes para evitar exceder límites de SQLite
-        process_batch_updates(email_ids, {Email.usage_count: 1, Email.status: 'completed'})
+        # Actualizar emails según su estado actual
+        # Emails con primer uso (0 -> 1, mantener activo) - solo para usuario 3
+        if emails_to_update_1_use:
+            process_batch_updates(emails_to_update_1_use, {Email.usage_count: 1, Email.status: 'active'})
+        
+        # Emails que se completan (1 -> 2 para usuario 3, 0 -> 1 para otros usuarios)
+        if emails_to_complete:
+            if allows_two_uses:
+                # Usuario 3: segundo uso (1 -> 2, completar)
+                process_batch_updates(emails_to_complete, {Email.usage_count: 2, Email.status: 'completed'})
+            else:
+                # Otros usuarios: primer uso (0 -> 1, completar)
+                process_batch_updates(emails_to_complete, {Email.usage_count: 1, Email.status: 'completed'})
         
         db.session.commit()
         
         # Mensaje según la cantidad procesada
+        first_use_count = len(emails_to_update_1_use)
+        completed_count = len(emails_to_complete)
+        
         if len(emails_data) == 1:
-            message = "Email obtenido y completado (uso finalizado, disponible para reinicio)"
+            if allows_two_uses:
+                if first_use_count == 1:
+                    message = "Email obtenido (primer uso, aún disponible para un uso más)"
+                else:
+                    message = "Email obtenido y completado (segundo uso finalizado)"
+            else:
+                message = "Email obtenido y completado (uso finalizado)"
         else:
-            message = f"{len(emails_data)} emails obtenidos y completados (uso finalizado, disponibles para reinicio)"
+            message_parts = []
+            if allows_two_uses and first_use_count > 0:
+                message_parts.append(f"{first_use_count} primer uso")
+            if completed_count > 0:
+                if allows_two_uses:
+                    message_parts.append(f"{completed_count} completado(s)")
+                else:
+                    message_parts.append(f"{completed_count} completado(s)")
+            message = f"{len(emails_data)} emails obtenidos ({', '.join(message_parts)})"
         
         response_data = {
             "message": message,
             "emails": emails_data,
             "count": len(emails_data),
             "requested_count": count,
-            "completed_count": len(emails_data)
+            "completed_count": completed_count
         }
+        
+        # Agregar información sobre primer uso solo para usuario 3
+        if allows_two_uses:
+            response_data["first_use_count"] = first_use_count
         
         # Si se pidieron más emails de los disponibles, agregar información
         if len(emails_data) < count:
@@ -1138,3 +1242,199 @@ def fix_inconsistent_emails(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Error durante la corrección: {str(e)}"}), 500
+
+
+#! ENDPOINT PARA RESETEAR EMAILS COMPLETADOS A DISPONIBLES (CAMBIAR DE COMPLETED A ACTIVE)
+@emails_bp.route('/reset-to-2-uses', methods=['POST'])
+def reset_emails_to_2_uses():
+    try:
+        # Verificar Admin-Key en headers
+        admin_key = request.headers.get('Admin-Key')
+        
+        # Verificar si el Admin-Key es válido
+        if admin_key != os.getenv('ADMIN_KEY'):
+            return jsonify({"error": "Acceso no autorizado. Admin-Key requerido"}), 403
+        
+        # Obtener datos del body
+        data = request.json or {}
+        
+        # Obtener parámetros
+        target_user_id = data.get('user_id', 3)  # Por defecto usuario ID 3
+        reset_all_users = data.get('reset_all_users', False)  # Por defecto solo el usuario especificado
+        include_2_uses = data.get('include_2_uses', False)  # Incluir emails con 2 usos completados (solo usuario 3)
+        
+        # Validar parámetros
+        if not isinstance(target_user_id, int) or target_user_id < 1:
+            return jsonify({"error": "El parámetro 'user_id' debe ser un número entero positivo"}), 400
+        
+        if not isinstance(reset_all_users, bool):
+            return jsonify({"error": "El parámetro 'reset_all_users' debe ser un booleano"}), 400
+        
+        if not isinstance(include_2_uses, bool):
+            return jsonify({"error": "El parámetro 'include_2_uses' debe ser un booleano"}), 400
+        
+        # Obtener estadísticas antes del reseteo
+        if reset_all_users:
+            stats_before = {
+                "completed_1_use": Email.query.filter(
+                    Email.usage_count == 1,
+                    Email.status == 'completed'
+                ).count(),
+                "completed_2_uses": Email.query.filter(
+                    Email.usage_count == 2,
+                    Email.status == 'completed'
+                ).count() if include_2_uses else 0
+            }
+        else:
+            stats_before = {
+                "completed_1_use": Email.query.filter(
+                    Email.user_id == target_user_id,
+                    Email.usage_count == 1,
+                    Email.status == 'completed'
+                ).count(),
+                "completed_2_uses": Email.query.filter(
+                    Email.user_id == target_user_id,
+                    Email.usage_count == 2,
+                    Email.status == 'completed'
+                ).count() if include_2_uses else 0
+            }
+        
+        # Construir consulta base: emails con status = 'completed'
+        # Por defecto: solo emails con usage_count = 1
+        # Si include_2_uses = True: también emails con usage_count = 2 (para usuario 3)
+        if reset_all_users:
+            if include_2_uses:
+                # Resetear para todos los usuarios: emails con 1 o 2 usos completados
+                emails_to_reset = Email.query.filter(
+                    Email.status == 'completed',
+                    Email.usage_count.in_([1, 2])
+                ).all()
+            else:
+                # Resetear para todos los usuarios: solo emails con 1 uso completado
+                emails_to_reset = Email.query.filter(
+                    Email.usage_count == 1,
+                    Email.status == 'completed'
+                ).all()
+        else:
+            if include_2_uses:
+                # Resetear solo para el usuario especificado: emails con 1 o 2 usos completados
+                emails_to_reset = Email.query.filter(
+                    Email.user_id == target_user_id,
+                    Email.status == 'completed',
+                    Email.usage_count.in_([1, 2])
+                ).all()
+            else:
+                # Resetear solo para el usuario especificado: solo emails con 1 uso completado
+                emails_to_reset = Email.query.filter(
+                    Email.user_id == target_user_id,
+                    Email.usage_count == 1,
+                    Email.status == 'completed'
+                ).all()
+        
+        if not emails_to_reset:
+            message = f"No hay emails completados para resetear"
+            if include_2_uses:
+                message += " (con 1 o 2 usos)"
+            else:
+                message += " (con 1 uso)"
+            if not reset_all_users:
+                message += f" para el usuario {target_user_id}"
+            return jsonify({
+                "message": message,
+                "target_user_id": target_user_id if not reset_all_users else "todos",
+                "reset_all_users": reset_all_users,
+                "include_2_uses": include_2_uses,
+                "reset_count": 0,
+                "stats_before": stats_before
+            }), 200
+        
+        # Agrupar por usuario y por usage_count para estadísticas
+        emails_by_user = {}
+        emails_by_usage = {1: [], 2: []}
+        
+        for email in emails_to_reset:
+            # Agrupar por usuario
+            if email.user_id not in emails_by_user:
+                emails_by_user[email.user_id] = []
+            emails_by_user[email.user_id].append(email)
+            
+            # Agrupar por usage_count
+            if email.usage_count in [1, 2]:
+                emails_by_usage[email.usage_count].append(email)
+        
+        # Resetear emails: usage_count = 0, status = 'active'
+        reset_count = 0
+        reset_emails_info = []
+        
+        for email in emails_to_reset:
+            old_usage = email.usage_count
+            email.usage_count = 0
+            email.status = 'active'
+            reset_emails_info.append({
+                "id": email.id,
+                "email": email.email,
+                "user_id": email.user_id,
+                "old_usage_count": old_usage,
+                "old_status": "completed",
+                "new_usage_count": 0,
+                "new_status": "active"
+            })
+            reset_count += 1
+        
+        db.session.commit()
+        
+        # Obtener estadísticas después del reseteo
+        if reset_all_users:
+            stats_after = {
+                "completed_1_use": Email.query.filter(
+                    Email.usage_count == 1,
+                    Email.status == 'completed'
+                ).count(),
+                "completed_2_uses": Email.query.filter(
+                    Email.usage_count == 2,
+                    Email.status == 'completed'
+                ).count() if include_2_uses else stats_before.get("completed_2_uses", 0)
+            }
+        else:
+            stats_after = {
+                "completed_1_use": Email.query.filter(
+                    Email.user_id == target_user_id,
+                    Email.usage_count == 1,
+                    Email.status == 'completed'
+                ).count(),
+                "completed_2_uses": Email.query.filter(
+                    Email.user_id == target_user_id,
+                    Email.usage_count == 2,
+                    Email.status == 'completed'
+                ).count() if include_2_uses else stats_before.get("completed_2_uses", 0)
+            }
+        
+        # Preparar estadísticas por usuario
+        stats_by_user = {}
+        for user_id, user_emails in emails_by_user.items():
+            stats_by_user[user_id] = len(user_emails)
+        
+        # Preparar estadísticas por usage_count
+        stats_by_usage = {
+            "reset_from_1_use": len(emails_by_usage[1]),
+            "reset_from_2_uses": len(emails_by_usage[2]) if include_2_uses else 0
+        }
+        
+        return jsonify({
+            "message": f"Reseteo completado exitosamente",
+            "target_user_id": target_user_id if not reset_all_users else "todos",
+            "reset_all_users": reset_all_users,
+            "include_2_uses": include_2_uses,
+            "reset_count": reset_count,
+            "stats_by_user": stats_by_user,
+            "stats_by_usage": stats_by_usage,
+            "stats_before": stats_before,
+            "stats_after": stats_after,
+            "emails_reset": reset_emails_info[:50],  # Mostrar solo los primeros 50
+            "total_emails_reset": len(reset_emails_info),
+            "note": f"Emails con status = 'completed' ahora tienen usage_count = 0 y status = 'active' (disponibles para usar). Reseteados: {stats_by_usage['reset_from_1_use']} con 1 uso" + (f", {stats_by_usage['reset_from_2_uses']} con 2 usos" if include_2_uses and stats_by_usage['reset_from_2_uses'] > 0 else "")
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error durante el reseteo: {str(e)}"}), 500
