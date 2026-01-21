@@ -17,18 +17,25 @@ IMAGE_NAME="${IMAGE_NAME:-api-login}"
 echo "Creando volumen de datos ($VOLUME_NAME)..."
 sudo docker volume create "$VOLUME_NAME" 2>/dev/null || echo "Volumen ya existe"
 
-# Crear backup de la base de datos si existe
-echo "Creando backup de la base de datos..."
-if sudo docker ps -q -f name="$CONTAINER_NAME" | grep -q .; then
-    BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-    # Intentar backup desde la ubicación correcta primero
-    sudo docker exec "$CONTAINER_NAME" cp /api_login/app/database/users.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || \
-    # Si no existe, intentar desde la ubicación anterior
-    sudo docker exec "$CONTAINER_NAME" cp /api_login/database.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || \
-    echo "No se pudo crear backup"
-    echo "Backup creado: users.db.backup.$BACKUP_DATE"
+# Crear backup completo de la base de datos ANTES de cualquier cambio
+echo "🔄 Creando backup completo de la base de datos..."
+BACKUP_SCRIPT="./backup_database.sh"
+if [ -f "$BACKUP_SCRIPT" ]; then
+    chmod +x "$BACKUP_SCRIPT"
+    "$BACKUP_SCRIPT" "$CONTAINER_NAME" "$VOLUME_NAME" || echo "⚠️  Backup falló, pero continuando..."
 else
-    echo "No hay contenedor corriendo, saltando backup"
+    echo "⚠️  Script de backup no encontrado, creando backup básico..."
+    BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
+    if sudo docker ps -q -f name="$CONTAINER_NAME" | grep -q .; then
+        # Intentar backup desde la ubicación correcta primero
+        sudo docker exec "$CONTAINER_NAME" cp /api_login/app/database/users.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || \
+        # Si no existe, intentar desde la ubicación anterior
+        sudo docker exec "$CONTAINER_NAME" cp /api_login/database.db /api_login/app/database/users.db.backup.$BACKUP_DATE 2>/dev/null || \
+        echo "⚠️  No se pudo crear backup desde contenedor"
+        echo "✅ Backup básico creado: users.db.backup.$BACKUP_DATE"
+    else
+        echo "⚠️  No hay contenedor corriendo, saltando backup básico"
+    fi
 fi
 
 # Detener y eliminar contenedor existente
@@ -108,32 +115,59 @@ with app.app_context():
         print('ERROR')
 " 2>/dev/null || true)
 
-if [ "$TABLES_EXIST" = "EXISTS" ]; then
-    echo "Las tablas ya existen, aplicando migraciones pendientes..."
-    echo "Verificando estado de migraciones..."
-    sudo docker exec "$CONTAINER_NAME" flask db current || echo "No hay migraciones aplicadas aún"
-    echo "Aplicando migraciones pendientes..."
-    sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
-    if [ $? -eq 0 ]; then
-        echo "✅ Migraciones aplicadas exitosamente"
-    else
-        echo "⚠️  Error al aplicar migraciones, intentando continuar..."
-    fi
+# SIEMPRE aplicar migraciones pendientes (Alembic es seguro y solo aplica cambios pendientes)
+echo "🔄 Aplicando migraciones de base de datos..."
+echo "   (Alembic solo aplicará cambios pendientes, es seguro ejecutarlo siempre)"
+
+# Verificar estado actual de migraciones
+echo "📋 Estado actual de migraciones:"
+sudo docker exec "$CONTAINER_NAME" flask db current 2>/dev/null || echo "   No hay migraciones aplicadas aún"
+
+# Aplicar todas las migraciones pendientes
+echo "⬆️  Aplicando migraciones pendientes..."
+if sudo docker exec "$CONTAINER_NAME" flask db upgrade heads; then
+    echo "✅ Migraciones aplicadas exitosamente"
 else
-    echo "Aplicando migraciones (primera vez)..."
-    sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
+    echo "⚠️  Error al aplicar migraciones"
+    echo "📋 Verificando si hay base de datos en ubicación anterior..."
     
-    # Mover base de datos existente al volumen si existe en ubicación anterior
-    echo "Verificando si hay base de datos en ubicación anterior..."
+    # Si falla, verificar si hay base de datos en ubicación anterior
     if sudo docker exec "$CONTAINER_NAME" test -f /api_login/database.db; then
-        echo "Moviendo base de datos al volumen..."
+        echo "📦 Moviendo base de datos al volumen..."
         sudo docker exec "$CONTAINER_NAME" cp /api_login/database.db /api_login/app/database/users.db
-        echo "Base de datos movida al volumen"
-        # Aplicar migraciones después de mover la base de datos
-        echo "Aplicando migraciones después de mover la base de datos..."
-        sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
+        echo "✅ Base de datos movida al volumen"
+        
+        # Intentar aplicar migraciones nuevamente después de mover
+        echo "🔄 Reintentando aplicar migraciones..."
+        if sudo docker exec "$CONTAINER_NAME" flask db upgrade heads; then
+            echo "✅ Migraciones aplicadas exitosamente después de mover la base de datos"
+        else
+            echo "❌ Error crítico: No se pudieron aplicar las migraciones"
+            echo "   Verifica los logs: sudo docker logs $CONTAINER_NAME"
+            exit 1
+        fi
+    else
+        echo "❌ Error crítico: No se pudieron aplicar las migraciones y no hay base de datos anterior"
+        echo "   Verifica los logs: sudo docker logs $CONTAINER_NAME"
+        exit 1
     fi
 fi
+
+# Verificar que la columna next_cycle_at existe (migración reciente)
+echo "🔍 Verificando migración de next_cycle_at..."
+sudo docker exec "$CONTAINER_NAME" python -c "
+from sqlalchemy import inspect
+from app import create_app
+from app.database import db
+app = create_app()
+with app.app_context():
+    inspector = inspect(db.engine)
+    columns = [col['name'] for col in inspector.get_columns('bot')]
+    if 'next_cycle_at' in columns:
+        print('✅ Columna next_cycle_at encontrada en la tabla bot')
+    else:
+        print('⚠️  Columna next_cycle_at NO encontrada (puede necesitar migración manual)')
+" 2>/dev/null || echo "⚠️  No se pudo verificar la columna next_cycle_at"
 
 # Verificar estado
 echo "Verificando estado..."
