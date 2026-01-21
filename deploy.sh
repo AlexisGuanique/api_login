@@ -101,7 +101,7 @@ if [ "$TABLES_EXIST" = "EXISTS" ]; then
     echo "Las tablas ya existen, saltando migraciones para preservar datos"
 else
     echo "Aplicando migraciones (primera vez)..."
-    sudo docker exec "$CONTAINER_NAME" flask db upgrade
+    sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
     
     # Mover base de datos existente al volumen si existe en ubicación anterior
     echo "Verificando si hay base de datos en ubicación anterior..."
