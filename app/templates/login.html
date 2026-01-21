@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login - API Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+  </head>
+  <body>
+    <main class="container">
+      <div class="card card--narrow">
+        <h1 class="h1" style="text-align: center;">Iniciar sesión</h1>
+
+        {% if error %}
+          <div class="alert alert--error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('web.login_post') }}" class="form">
+          <label class="label">
+            Usuario
+            <input class="input" name="username" autocomplete="username" required />
+          </label>
+          <label class="label">
+            Contraseña
+            <div class="inputwrap">
+              <input class="input" id="password" name="password" type="password" autocomplete="current-password" required />
+              <button class="eye" type="button" data-toggle="password" aria-label="Mostrar/ocultar contraseña">👁</button>
+            </div>
+          </label>
+          <button class="button" type="submit">Entrar</button>
+        </form>
+      </div>
+    </main>
+    <script>
+      (function () {
+        function toggle(id) {
+          var input = document.getElementById(id);
+          if (!input) return;
+          input.type = input.type === "password" ? "text" : "password";
+        }
+        document.querySelectorAll("[data-toggle]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            toggle(btn.getAttribute("data-toggle"));
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
+
+

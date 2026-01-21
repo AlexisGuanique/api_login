@@ -36,7 +36,20 @@ if [ -f .env ]; then
 else
     echo "⚠️  Archivo .env no encontrado, usando valores por defecto"
     export ADMIN_KEY=my_very_secret_key
+    export SECRET_KEY=my_very_secret_key
     export DATABASE_PATH=/api_login/app/database
+    export SESSION_COOKIE_SECURE=false
+fi
+
+# Validar que SECRET_KEY esté definido (usar ADMIN_KEY como fallback si no existe)
+if [ -z "$SECRET_KEY" ]; then
+    echo "⚠️  SECRET_KEY no definido, usando ADMIN_KEY como fallback"
+    export SECRET_KEY="$ADMIN_KEY"
+fi
+
+# SESSION_COOKIE_SECURE por defecto false (true solo con HTTPS)
+if [ -z "$SESSION_COOKIE_SECURE" ]; then
+    export SESSION_COOKIE_SECURE=false
 fi
 
 # Ejecutar contenedor con volumen
@@ -46,6 +59,8 @@ sudo docker run -d \
   -v api-login-data:/api_login/app/database \
   -e DATABASE_PATH="$DATABASE_PATH" \
   -e ADMIN_KEY="$ADMIN_KEY" \
+  -e SECRET_KEY="$SECRET_KEY" \
+  -e SESSION_COOKIE_SECURE="$SESSION_COOKIE_SECURE" \
   --name api-login-container \
   --restart unless-stopped \
   api-login
@@ -99,3 +114,10 @@ echo "   ✅ Backup automático antes del despliegue"
 echo "   ✅ Verificación de tablas existentes"
 echo "   ✅ Migraciones solo en primera instalación"
 echo "   ✅ Volumen persistente para datos"
+echo "   ✅ Sesiones seguras configuradas (SECRET_KEY)"
+echo ""
+echo "📝 Variables de entorno configuradas:"
+echo "   - ADMIN_KEY: ${ADMIN_KEY:0:10}..."
+echo "   - SECRET_KEY: ${SECRET_KEY:0:10}..."
+echo "   - DATABASE_PATH: $DATABASE_PATH"
+echo "   - SESSION_COOKIE_SECURE: $SESSION_COOKIE_SECURE"

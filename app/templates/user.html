@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="pagehead">
+    <div>
+      <h1 class="h1">Usuario</h1>
+
+    </div>
+  </div>
+
+  {% if success %}
+    <div class="alert alert--ok">{{ success }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="alert alert--error">{{ error }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="kv">
+      <div class="kv__row"><div class="kv__k">Username</div><div class="kv__v">{{ user.username }}</div></div>
+      <div class="kv__row">
+        <div class="kv__k">Token expira</div>
+        <div class="kv__v">
+          {% if user.token_expiration %}
+            {{ user.token_expiration.strftime('%d/%m/%Y %H:%M') }}
+          {% else %}
+            -
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <hr class="hr" />
+
+    <form method="post" action="{{ url_for('web.user_profile_post') }}" class="form">
+      <label class="label">
+        Nombre
+        <input class="input" name="name" value="{{ user.name or '' }}" />
+      </label>
+      <label class="label">
+        Apellido
+        <input class="input" name="lastname" value="{{ user.lastname or '' }}" />
+      </label>
+
+      <hr class="hr" />
+
+      <label class="label">
+        Nueva contraseña
+        <div class="inputwrap">
+          <input class="input" id="new_password" name="new_password" type="password" autocomplete="new-password" />
+          <button class="eye" type="button" data-toggle="new_password" aria-label="Mostrar/ocultar contraseña">👁</button>
+        </div>
+        <span class="muted small">Déjala en blanco si no quieres cambiarla.</span>
+      </label>
+
+      <label class="label">
+        Confirmar contraseña
+        <div class="inputwrap">
+          <input class="input" id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" />
+          <button class="eye" type="button" data-toggle="confirm_password" aria-label="Mostrar/ocultar contraseña">👁</button>
+        </div>
+      </label>
+
+      <button class="button" type="submit">Guardar cambios</button>
+    </form>
+  </section>
+
+  <script>
+    (function () {
+      function toggle(id) {
+        var input = document.getElementById(id);
+        if (!input) return;
+        input.type = input.type === "password" ? "text" : "password";
+      }
+      document.querySelectorAll("[data-toggle]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          toggle(btn.getAttribute("data-toggle"));
+        });
+      });
+    })();
+  </script>
+{% endblock %}
+
+

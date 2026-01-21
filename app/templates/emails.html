@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+  {% macro sort_link(label, key) -%}
+    {%- set next_dir = 'asc' if sort != key or dir == 'desc' else 'desc' -%}
+    {%- set arrow = ' ▲' if sort == key and dir == 'asc' else (' ▼' if sort == key and dir == 'desc' else '') -%}
+    <a class="sortlink" href="?page=1&per_page={{ per_page }}&sort={{ key }}&dir={{ next_dir }}">{{ label }}{{ arrow }}</a>
+  {%- endmacro %}
+
+  <div class="pagehead">
+    <div>
+      <h1 class="h1">Emails</h1>
+      <div class="muted">
+        {% if total > 0 %}
+          Mostrando {{ ((page - 1) * per_page) + 1 }} - {{ [page * per_page, total]|min }} de {{ total }} total
+        {% else %}
+          0 total
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="tablewrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ sort_link('ID', 'id') }}</th>
+            <th>{{ sort_link('Email', 'email') }}</th>
+            <th>{{ sort_link('Status', 'status') }}</th>
+            <th>{{ sort_link('Usage', 'usage_count') }}</th>
+            <th>{{ sort_link('Created', 'created_at') }}</th>
+            <th>{{ sort_link('User ID', 'user_id') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in emails %}
+            <tr>
+              <td>{{ e.id }}</td>
+              <td><code>{{ e.email }}</code></td>
+              <td>{{ e.status }}</td>
+              <td>{{ e.usage_count }}</td>
+              <td class="muted">{{ e.created_at }}</td>
+              <td>{{ e.user_id }}</td>
+            </tr>
+          {% endfor %}
+          {% if emails|length == 0 %}
+            <tr><td colspan="6" class="muted">No hay emails para mostrar.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    
+    {% if total_pages > 1 %}
+      <div class="pagination">
+        {% if page > 1 %}
+          <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}" class="pagination__btn">← Anterior</a>
+        {% else %}
+          <span class="pagination__btn pagination__btn--disabled">← Anterior</span>
+        {% endif %}
+        
+        <span class="pagination__info">Página {{ page }} de {{ total_pages }}</span>
+        
+        {% if page < total_pages %}
+          <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}" class="pagination__btn">Siguiente →</a>
+        {% else %}
+          <span class="pagination__btn pagination__btn--disabled">Siguiente →</span>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}
+
+

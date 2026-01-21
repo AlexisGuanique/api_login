@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="pagehead">
+    <div>
+      <h1 class="h1">Dashboard</h1>
+      <div class="muted">Selecciona una sección en el menú lateral.</div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <a class="statcard" href="{{ url_for('web.accounts') }}">
+      <div class="statcard__label">Cuentas</div>
+      <div class="statcard__value">{{ accounts_count }}</div>
+      <div class="statcard__hint">Ver listado</div>
+    </a>
+
+    <a class="statcard" href="{{ url_for('web.emails') }}">
+      <div class="statcard__label">Emails</div>
+      <div class="statcard__value">{{ emails_count }}</div>
+      <div class="statcard__hint">Ver listado</div>
+    </a>
+
+    <a class="statcard" href="{{ url_for('web.user_profile') }}">
+      <div class="statcard__label">User</div>
+      <div class="statcard__value">Perfil</div>
+      <div class="statcard__hint">Ver / editar</div>
+    </a>
+  </div>
+{% endblock %}
+
+
