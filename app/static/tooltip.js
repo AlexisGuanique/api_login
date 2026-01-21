@@ -10,9 +10,14 @@
     function updatePosition() {
       if (!panel || !trigger) return;
       const rect = trigger.getBoundingClientRect();
-      // Posicionar arriba del trigger, centrado horizontalmente
-      panel.style.bottom = `${window.innerHeight - rect.top + 8}px`;
-      panel.style.left = `${rect.left + rect.width / 2}px`;
+      // Posicionar debajo del trigger, centrado horizontalmente
+      const x = rect.left + rect.width / 2;
+      let y = rect.bottom + 8;
+      // Clamp simple para que no se salga por abajo
+      const maxTop = window.innerHeight - 16;
+      if (y > maxTop) y = maxTop;
+      panel.style.left = `${x}px`;
+      panel.style.top = `${y}px`;
     }
 
     function open() {

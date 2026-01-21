@@ -182,7 +182,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 .tooltip__panel{
   position:fixed;
   transform:translateX(-50%);
-  width:min(300px, 80vw);
+  width:min(260px, 76vw);
   max-height:240px;
   overflow:auto;
   padding:10px 12px;
