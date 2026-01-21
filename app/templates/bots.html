@@ -12,14 +12,40 @@
     {% set creadores = bots|selectattr('bot_type', 'equalto', 'creador')|list %}
     {% set logueadores = bots|selectattr('bot_type', 'equalto', 'logueador')|list %}
     
-    <!-- Pestañas -->
-    <div class="tabs" style="display: flex; border-bottom: 2px solid var(--border-color, #e1e4e8); margin-bottom: 20px;">
-      <button class="tab-button tab-button--active" data-tab="creadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid var(--primary-color, #0366d6); color: var(--text-color, #24292e); cursor: pointer; font-size: 14px; font-weight: 500;">
-        🎨 Creadores <span class="tab-count">({{ creadores|length }})</span>
-      </button>
-      <button class="tab-button" data-tab="logueadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-color-muted, #586069); cursor: pointer; font-size: 14px; font-weight: 500;">
-        ✅ Logueadores <span class="tab-count">({{ logueadores|length }})</span>
-      </button>
+    <!-- Pestañas con botones de control global -->
+    <div class="tabs-container" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color, #e1e4e8); margin-bottom: 20px;">
+      <div class="tabs" style="display: flex;">
+        <button class="tab-button tab-button--active" data-tab="creadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid var(--primary-color, #0366d6); color: var(--text-color, #24292e); cursor: pointer; font-size: 14px; font-weight: 500;">
+          🎨 Creadores <span class="tab-count">({{ creadores|length }})</span>
+        </button>
+        <button class="tab-button" data-tab="logueadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-color-muted, #586069); cursor: pointer; font-size: 14px; font-weight: 500;">
+          ✅ Logueadores <span class="tab-count">({{ logueadores|length }})</span>
+        </button>
+      </div>
+      
+      <!-- Botones de control global -->
+      <div class="global-controls" style="display: flex; gap: 12px; align-items: center;">
+        <button 
+          id="start-all-bots" 
+          class="global-control-btn" 
+          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: all 0.2s; padding: 0; position: relative;"
+          onmouseover="this.style.transform='scale(1.15)'"
+          onmouseout="this.style.transform='scale(1)'"
+        >
+          ▶️
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Iniciar todos los bots</span>
+        </button>
+        <button 
+          id="stop-all-bots" 
+          class="global-control-btn" 
+          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: all 0.2s; padding: 0; position: relative;"
+          onmouseover="this.style.transform='scale(1.15)'"
+          onmouseout="this.style.transform='scale(1)'"
+        >
+          ⏹️
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Detener todos los bots</span>
+        </button>
+      </div>
     </div>
 
     <!-- Contenido de pestaña Creadores -->
@@ -184,18 +210,8 @@
       .then(res => res.json())
       .then(data => {
         if (data.error) {
-          alert('Error: ' + data.error);
           throw new Error(data.error);
         } else {
-          // Mostrar mensaje de éxito más amigable
-          const commandNames = {
-            'start': 'Iniciar',
-            'stop': 'Detener',
-            'execute_creator': 'Ejecutar Creator',
-            'restart': 'Reiniciar'
-          };
-          const commandName = commandNames[command] || command;
-          
           // Determinar el nuevo estado según el comando
           let newStatus = null;
           if (command === 'execute_creator' || command === 'start') {
@@ -204,20 +220,74 @@
             newStatus = 'stopped';
           }
           
-          // Mostrar alert y actualizar UI
-          alert(`✅ Comando "${commandName}" enviado exitosamente al bot`);
-          
           // Actualizar UI inmediatamente si conocemos el nuevo estado
           if (newStatus) {
             updateBotStatusUI(botId, newStatus);
           }
+          return data;
         }
       })
       .catch(err => {
         console.error('Error:', err);
-        alert('❌ Error al enviar comando: ' + (err.message || 'Error desconocido'));
         throw err;
       });
+    }
+
+    // Función para enviar comando a todos los bots de un tipo
+    async function sendCommandToAllBots(botType, command) {
+      const commandNames = {
+        'start': 'Iniciar',
+        'stop': 'Detener',
+        'execute_creator': 'Ejecutar Creator',
+        'restart': 'Reiniciar'
+      };
+      const commandName = commandNames[command] || command;
+      
+      // Obtener todos los bots del tipo especificado que estén conectados
+      const botCards = document.querySelectorAll(`[data-bot-type="${botType}"]`);
+      const connectedBots = Array.from(botCards).filter(card => {
+        const statusBadge = card.querySelector('.status-badge');
+        const status = statusBadge ? statusBadge.textContent.trim() : '';
+        // Solo incluir bots que estén online, stopped o running
+        return status === 'online' || status === 'stopped' || status === 'running';
+      });
+      
+      if (connectedBots.length === 0) {
+        alert(`⚠️ No hay bots ${botType} conectados para ejecutar el comando.`);
+        return;
+      }
+      
+      // Confirmar acción
+      const botTypeName = botType === 'creador' ? 'creadores' : 'logueadores';
+      if (!confirm(`¿Estás seguro de ${commandName.toLowerCase()} todos los ${botTypeName} conectados? (${connectedBots.length} bots)`)) {
+        return;
+      }
+      
+      // Enviar comandos a todos los bots
+      const promises = [];
+      const errors = [];
+      const successes = [];
+      
+      for (const card of connectedBots) {
+        const botId = parseInt(card.getAttribute('data-bot-id'));
+        if (botId) {
+          promises.push(
+            sendCommand(botId, command)
+              .then(() => successes.push(botId))
+              .catch(err => errors.push({ botId, error: err.message }))
+          );
+        }
+      }
+      
+      // Esperar a que todos los comandos se completen
+      await Promise.allSettled(promises);
+      
+      // Mostrar resultado
+      if (errors.length === 0) {
+        alert(`✅ Comando "${commandName}" enviado exitosamente a ${successes.length} ${botTypeName}.`);
+      } else {
+        alert(`⚠️ Comando enviado a ${successes.length} ${botTypeName}, pero ${errors.length} fallaron.\n\nErrores:\n${errors.map(e => `Bot ${e.botId}: ${e.error}`).join('\n')}`);
+      }
     }
 
     function deleteBot(botId) {
@@ -326,6 +396,9 @@
           if (targetContent) {
             targetContent.style.display = 'block';
           }
+          
+          // Actualizar tooltips de los botones globales
+          updateGlobalButtonsTooltips();
         });
       });
       
@@ -339,18 +412,31 @@
           if (botId && command) {
             // Deshabilitar el botón mientras se procesa
             button.disabled = true;
+            const originalText = button.textContent;
             button.textContent = 'Enviando...';
             
-            sendCommand(botId, command).then(() => {
-              // Rehabilitar el botón después de un momento
-              setTimeout(() => {
+            const commandNames = {
+              'start': 'Iniciar',
+              'stop': 'Detener',
+              'execute_creator': 'Ejecutar Creator',
+              'restart': 'Reiniciar'
+            };
+            const commandName = commandNames[command] || command;
+            
+            sendCommand(botId, command)
+              .then(() => {
+                alert(`✅ Comando "${commandName}" enviado exitosamente al bot`);
+                // Rehabilitar el botón después de un momento
+                setTimeout(() => {
+                  button.disabled = false;
+                  button.textContent = originalText;
+                }, 1000);
+              })
+              .catch((err) => {
+                alert('❌ Error al enviar comando: ' + (err.message || 'Error desconocido'));
                 button.disabled = false;
-                button.textContent = button.getAttribute('data-original-text') || button.textContent;
-              }, 1000);
-            }).catch(() => {
-              button.disabled = false;
-              button.textContent = button.getAttribute('data-original-text') || button.textContent;
-            });
+                button.textContent = originalText;
+              });
           }
         }
       });
@@ -372,6 +458,93 @@
           button.setAttribute('data-original-text', button.textContent);
         }
       });
+
+      // Función para obtener la pestaña activa y el tipo de bot
+      function getActiveTabType() {
+        const activeTab = document.querySelector('.tab-button--active');
+        if (activeTab) {
+          const tabName = activeTab.getAttribute('data-tab');
+          return tabName === 'creadores' ? 'creador' : 'logueador';
+        }
+        return 'creador'; // Por defecto
+      }
+
+      // Función para actualizar tooltips según la pestaña activa
+      function updateGlobalButtonsTooltips() {
+        const activeType = getActiveTabType();
+        const botTypeName = activeType === 'creador' ? 'creadores' : 'logueadores';
+        const startBtn = document.getElementById('start-all-bots');
+        const stopBtn = document.getElementById('stop-all-bots');
+        
+        if (startBtn) {
+          const tooltip = startBtn.querySelector('.tooltip-text');
+          if (tooltip) {
+            tooltip.textContent = `Iniciar todos los ${botTypeName}`;
+          }
+        }
+        if (stopBtn) {
+          const tooltip = stopBtn.querySelector('.tooltip-text');
+          if (tooltip) {
+            tooltip.textContent = `Detener todos los ${botTypeName}`;
+          }
+        }
+      }
+      
+      // Agregar event listeners para mostrar/ocultar tooltips
+      function setupTooltips() {
+        const buttons = document.querySelectorAll('.global-control-btn');
+        buttons.forEach(button => {
+          const tooltip = button.querySelector('.tooltip-text');
+          if (tooltip) {
+            button.addEventListener('mouseenter', function() {
+              tooltip.style.visibility = 'visible';
+              tooltip.style.opacity = '1';
+            });
+            button.addEventListener('mouseleave', function() {
+              tooltip.style.visibility = 'hidden';
+              tooltip.style.opacity = '0';
+            });
+          }
+        });
+      }
+
+      // Event listeners para botones globales
+      document.getElementById('start-all-bots')?.addEventListener('click', async function() {
+        const activeType = getActiveTabType();
+        const command = activeType === 'creador' ? 'execute_creator' : 'start';
+        
+        this.disabled = true;
+        this.style.opacity = '0.6';
+        
+        try {
+          await sendCommandToAllBots(activeType, command);
+        } catch (err) {
+          console.error('Error:', err);
+        } finally {
+          this.disabled = false;
+          this.style.opacity = '1';
+        }
+      });
+
+      document.getElementById('stop-all-bots')?.addEventListener('click', async function() {
+        const activeType = getActiveTabType();
+        
+        this.disabled = true;
+        this.style.opacity = '0.6';
+        
+        try {
+          await sendCommandToAllBots(activeType, 'stop');
+        } catch (err) {
+          console.error('Error:', err);
+        } finally {
+          this.disabled = false;
+          this.style.opacity = '1';
+        }
+      });
+
+      // Inicializar tooltips al cargar
+      updateGlobalButtonsTooltips();
+      setupTooltips();
     });
   </script>
 {% endblock %}
