@@ -180,12 +180,9 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 .tooltip{position:relative;display:inline-block;max-width:260px;padding-bottom:10px}
 .tooltip__trigger{display:inline-block;max-width:260px}
 .tooltip__panel{
-  position:absolute;
-  left:50%;
-  top:100%;
-  margin-top:8px;
+  position:fixed;
   transform:translateX(-50%);
-  width:min(360px, 85vw);
+  width:min(300px, 80vw);
   max-height:240px;
   overflow:auto;
   padding:10px 12px;
@@ -195,7 +192,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
   color:var(--text);
   box-shadow:0 12px 30px var(--shadow);
   display:none; /* evita que agregue ancho/scroll "fantasma" */
-  z-index:50;
+  z-index:100;
 }
 .tooltip__panel pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;line-height:1.35}
 .tooltip.tooltip--open .tooltip__panel{display:block}

@@ -4,10 +4,21 @@
 
   document.querySelectorAll(".tooltip").forEach((el) => {
     let t = null;
+    const panel = el.querySelector(".tooltip__panel");
+    const trigger = el.querySelector(".tooltip__trigger");
+
+    function updatePosition() {
+      if (!panel || !trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      // Posicionar arriba del trigger, centrado horizontalmente
+      panel.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+      panel.style.left = `${rect.left + rect.width / 2}px`;
+    }
 
     function open() {
       if (t) clearTimeout(t);
       t = null;
+      updatePosition();
       el.classList.add("tooltip--open");
     }
 
@@ -23,6 +34,10 @@
     el.addEventListener("mouseleave", closeWithDelay);
     el.addEventListener("focusin", open);
     el.addEventListener("focusout", closeWithDelay);
+    
+    // Actualizar posición si scrollea o redimensiona
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
   });
 })();
 
