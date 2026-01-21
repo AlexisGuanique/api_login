@@ -109,7 +109,8 @@ with app.app_context():
 " 2>/dev/null || true)
 
 if [ "$TABLES_EXIST" = "EXISTS" ]; then
-    echo "Las tablas ya existen, saltando migraciones para preservar datos"
+    echo "Las tablas ya existen, aplicando migraciones pendientes..."
+    sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
 else
     echo "Aplicando migraciones (primera vez)..."
     sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
