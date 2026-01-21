@@ -22,7 +22,8 @@
 
   <section class="card">
     <div class="tablewrap">
-      <table class="table">
+      <div class="tablewrap__x">
+        <table class="table">
         <thead>
           <tr>
             <th>{{ sort_link('ID', 'id') }}</th>
@@ -60,7 +61,8 @@
             <tr><td colspan="8" class="muted">No hay cuentas para mostrar.</td></tr>
           {% endif %}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
     
     {% if total_pages > 1 %}
