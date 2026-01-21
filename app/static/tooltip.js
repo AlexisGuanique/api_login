@@ -12,10 +12,23 @@
       const rect = trigger.getBoundingClientRect();
       // Posicionar debajo del trigger, centrado horizontalmente
       const x = rect.left + rect.width / 2;
-      let y = rect.bottom + 8;
-      // Clamp simple para que no se salga por abajo
-      const maxTop = window.innerHeight - 16;
-      if (y > maxTop) y = maxTop;
+      const y = rect.bottom + 8;
+      
+      // Calcular espacio disponible debajo
+      const spaceBelow = window.innerHeight - y;
+      const minSpace = 32; // espacio mínimo que queremos dejar
+      const defaultMaxHeight = 240; // altura máxima por defecto
+      
+      // Si no hay suficiente espacio, ajustar max-height dinámicamente
+      if (spaceBelow < defaultMaxHeight + minSpace) {
+        // Ajustar altura para que quepa, dejando un margen mínimo
+        const adjustedHeight = Math.max(120, spaceBelow - minSpace);
+        panel.style.maxHeight = `${adjustedHeight}px`;
+      } else {
+        // Restaurar altura por defecto si hay espacio
+        panel.style.maxHeight = `${defaultMaxHeight}px`;
+      }
+      
       panel.style.left = `${x}px`;
       panel.style.top = `${y}px`;
     }
