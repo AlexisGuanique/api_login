@@ -126,13 +126,15 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 
   /* sidebar as drawer */
   .sidebar{
-    position:fixed;left:0;top:0;height:100vh;width:280px;
+    position:fixed;left:0;top:0;height:100vh;height:100dvh;width:280px;
     transform:translateX(-110%);
     transition:transform .18s ease;
     z-index:30;
     border-right:1px solid var(--line);
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
+    /* espacio extra para que el bottom bar del navegador (iOS Chrome) no tape el último item */
+    padding-bottom:calc(18px + env(safe-area-inset-bottom) + 64px);
   }
   html[data-sidebar="open"] .sidebar{transform:translateX(0)}
 
@@ -142,7 +144,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
     position:sticky;
     bottom:0;
     padding-top:12px;
-    padding-bottom:calc(10px + env(safe-area-inset-bottom));
+    padding-bottom:calc(10px + env(safe-area-inset-bottom) + 64px);
     background:transparent;
     backdrop-filter:none;
   }
