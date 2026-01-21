@@ -110,7 +110,15 @@ with app.app_context():
 
 if [ "$TABLES_EXIST" = "EXISTS" ]; then
     echo "Las tablas ya existen, aplicando migraciones pendientes..."
+    echo "Verificando estado de migraciones..."
+    sudo docker exec "$CONTAINER_NAME" flask db current || echo "No hay migraciones aplicadas aún"
+    echo "Aplicando migraciones pendientes..."
     sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
+    if [ $? -eq 0 ]; then
+        echo "✅ Migraciones aplicadas exitosamente"
+    else
+        echo "⚠️  Error al aplicar migraciones, intentando continuar..."
+    fi
 else
     echo "Aplicando migraciones (primera vez)..."
     sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
@@ -121,6 +129,9 @@ else
         echo "Moviendo base de datos al volumen..."
         sudo docker exec "$CONTAINER_NAME" cp /api_login/database.db /api_login/app/database/users.db
         echo "Base de datos movida al volumen"
+        # Aplicar migraciones después de mover la base de datos
+        echo "Aplicando migraciones después de mover la base de datos..."
+        sudo docker exec "$CONTAINER_NAME" flask db upgrade heads
     fi
 fi
 
