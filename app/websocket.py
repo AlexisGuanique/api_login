@@ -301,12 +301,37 @@ def register_socketio_handlers(socketio):
             # Actualizar estado del bot
             bot.status = new_status
             bot.last_seen = datetime.utcnow()
+            
+            # Actualizar next_cycle_at si se proporciona (solo para logueadores)
+            if bot.bot_type == 'logueador':
+                if 'next_cycle_at' in data:
+                    next_cycle_str = data.get('next_cycle_at')
+                    if next_cycle_str:
+                        try:
+                            # Parsear la fecha ISO string a datetime UTC
+                            if next_cycle_str.endswith('Z'):
+                                next_cycle_str = next_cycle_str[:-1] + '+00:00'
+                            elif '+' not in next_cycle_str and '-' not in next_cycle_str[-6:]:
+                                next_cycle_str = next_cycle_str + '+00:00'
+                            from dateutil import parser
+                            bot.next_cycle_at = parser.isoparse(next_cycle_str)
+                            print(f"📅 Próximo ciclo actualizado: {bot.name} -> {bot.next_cycle_at}")
+                        except Exception as e:
+                            print(f"⚠️  Error al parsear next_cycle_at: {e}")
+                    else:
+                        # Si se envía None o vacío, limpiar el campo
+                        bot.next_cycle_at = None
+                elif new_status in ['stopped', 'offline']:
+                    # Limpiar next_cycle_at cuando el bot se detiene o desconecta
+                    bot.next_cycle_at = None
+            
             db.session.commit()
             
             # Notificar a clientes web
             socketio.emit('bot_status_changed', {
                 'bot_id': bot.id,
                 'status': new_status,
+                'next_cycle_at': bot.next_cycle_at.isoformat() + 'Z' if bot.next_cycle_at else None,
                 'user_id': bot.user_id
             }, room=f'user_{bot.user_id}')
             

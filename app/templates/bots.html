@@ -96,6 +96,9 @@
               <div class="bot-card__status">
                 <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
                 <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">{{ bot.last_seen|fmt_dt }}</span></span>
+                {% if bot.bot_type == 'logueador' and bot.next_cycle_at %}
+                  <span class="muted small next-cycle-time" data-next-cycle="{{ bot.next_cycle_at }}" style="display: block; margin-top: 4px;">Próximo ciclo: <span class="time-value">{{ bot.next_cycle_at|fmt_dt }}</span></span>
+                {% endif %}
               </div>
               <div class="bot-card__actions">
                 {% if bot.status == 'online' or bot.status == 'stopped' or bot.status == 'running' %}
@@ -129,7 +132,7 @@
     socket.emit('join_user_room', { user_id: userId });
 
     // Función para actualizar el estado del bot en la UI
-    function updateBotStatusUI(botId, newStatus) {
+    function updateBotStatusUI(botId, newStatus, nextCycleAt = null) {
       const botCard = document.querySelector(`[data-bot-id="${botId}"]`);
       if (!botCard) return;
       
@@ -138,6 +141,38 @@
       if (statusBadge) {
         statusBadge.className = `status-badge status-badge--${newStatus}`;
         statusBadge.textContent = newStatus;
+      }
+      
+      // Actualizar próximo ciclo si se proporciona (solo para logueadores)
+      const botType = botCard.getAttribute('data-bot-type');
+      if (botType === 'logueador') {
+        let nextCycleElement = botCard.querySelector('.next-cycle-time');
+        if (nextCycleAt) {
+          if (!nextCycleElement) {
+            // Crear elemento si no existe
+            const statusContainer = botCard.querySelector('.bot-card__status');
+            if (statusContainer) {
+              nextCycleElement = document.createElement('span');
+              nextCycleElement.className = 'muted small next-cycle-time';
+              nextCycleElement.style.display = 'block';
+              nextCycleElement.style.marginTop = '4px';
+              nextCycleElement.innerHTML = 'Próximo ciclo: <span class="time-value"></span>';
+              statusContainer.appendChild(nextCycleElement);
+            }
+          }
+          if (nextCycleElement) {
+            nextCycleElement.setAttribute('data-next-cycle', nextCycleAt);
+            const timeValue = nextCycleElement.querySelector('.time-value');
+            if (timeValue) {
+              timeValue.textContent = formatLocalDateTime(nextCycleAt);
+            }
+          }
+        } else {
+          // Si no hay próximo ciclo, ocultar o eliminar el elemento
+          if (nextCycleElement) {
+            nextCycleElement.remove();
+          }
+        }
       }
       
       // Actualizar botones según el nuevo estado
@@ -195,7 +230,7 @@
 
     // Escuchar cambios de estado de bots desde el servidor
     socket.on('bot_status_changed', (data) => {
-      updateBotStatusUI(data.bot_id, data.status);
+      updateBotStatusUI(data.bot_id, data.status, data.next_cycle_at);
     });
 
     function sendCommand(botId, command) {
@@ -352,6 +387,18 @@
     function convertAllDatesToLocal() {
       document.querySelectorAll('.last-seen-time[data-last-seen]').forEach(element => {
         const isoString = element.getAttribute('data-last-seen');
+        const timeValueElement = element.querySelector('.time-value');
+        if (timeValueElement && isoString && isoString !== 'None' && isoString.trim() !== '') {
+          const localTime = formatLocalDateTime(isoString);
+          if (localTime) {
+            timeValueElement.textContent = localTime;
+          }
+        }
+      });
+      
+      // Convertir también las fechas de próximo ciclo
+      document.querySelectorAll('.next-cycle-time[data-next-cycle]').forEach(element => {
+        const isoString = element.getAttribute('data-next-cycle');
         const timeValueElement = element.querySelector('.time-value');
         if (timeValueElement && isoString && isoString !== 'None' && isoString.trim() !== '') {
           const localTime = formatLocalDateTime(isoString);
