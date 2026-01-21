@@ -168,7 +168,10 @@
             nextCycleElement.setAttribute('data-next-cycle', nextCycleAt);
             const timeValue = nextCycleElement.querySelector('.time-value');
             if (timeValue) {
-              timeValue.textContent = formatLocalDateTime(nextCycleAt);
+              console.log('🔄 Actualizando próximo ciclo vía WebSocket:', nextCycleAt);
+              const localTime = formatLocalDateTime(nextCycleAt);
+              timeValue.textContent = localTime;
+              console.log('   ✅ Actualizado a:', localTime);
             }
           }
         } else {
@@ -465,8 +468,10 @@
       // Convertir fechas a zona horaria local inmediatamente
       convertAllDatesToLocal();
       
-      // También convertir después de un pequeño delay para asegurar que todo esté renderizado
+      // También convertir después de pequeños delays para asegurar que todo esté renderizado
       setTimeout(convertAllDatesToLocal, 100);
+      setTimeout(convertAllDatesToLocal, 500);
+      setTimeout(convertAllDatesToLocal, 1000);
       // Manejo de pestañas
       const tabButtons = document.querySelectorAll('.tab-button');
       const tabContents = document.querySelectorAll('.tab-content');
