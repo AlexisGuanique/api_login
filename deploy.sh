@@ -51,25 +51,41 @@ sudo docker build -t "$IMAGE_NAME" .
 if [ -f .env ]; then
     echo "Cargando variables de entorno desde .env..."
     # shellcheck disable=SC2046
-    export $(grep -v '^#' .env | xargs) || true
+    set +u  # Desactivar verificación de variables no definidas temporalmente
+    export $(grep -v '^#' .env | grep -v '^$' | xargs) || true
+    set -u  # Reactivar verificación
 else
     echo "Archivo .env no encontrado, usando valores por defecto"
-    export ADMIN_KEY=my_very_secret_key
-    export SECRET_KEY=my_very_secret_key
+    export ADMIN_KEY=Aaad0719
+    export SECRET_KEY=Aaad0719
     export DATABASE_PATH=/api_login/app/database
     export SESSION_COOKIE_SECURE=false
 fi
 
 # Validar que SECRET_KEY esté definido (usar ADMIN_KEY como fallback si no existe)
-if [ -z "$SECRET_KEY" ]; then
+set +u  # Desactivar verificación temporalmente
+if [ -z "${SECRET_KEY:-}" ]; then
     echo "SECRET_KEY no definido, usando ADMIN_KEY como fallback"
-    export SECRET_KEY="$ADMIN_KEY"
+    export SECRET_KEY="${ADMIN_KEY:-Aaad0719}"
 fi
 
 # SESSION_COOKIE_SECURE por defecto false (true solo con HTTPS)
-if [ -z "$SESSION_COOKIE_SECURE" ]; then
+if [ -z "${SESSION_COOKIE_SECURE:-}" ]; then
     export SESSION_COOKIE_SECURE=false
 fi
+
+# Asegurar que ADMIN_KEY esté definido
+if [ -z "${ADMIN_KEY:-}" ]; then
+    echo "⚠️  ADMIN_KEY no definido, usando valor por defecto"
+    export ADMIN_KEY=Aaad0719
+fi
+
+# Asegurar que DATABASE_PATH esté definido
+if [ -z "${DATABASE_PATH:-}" ]; then
+    export DATABASE_PATH=/api_login/app/database
+fi
+
+set -u  # Reactivar verificación
 
 # Ejecutar contenedor con volumen
 echo "Ejecutando contenedor ($CONTAINER_NAME) en puerto host $APP_PORT..."
