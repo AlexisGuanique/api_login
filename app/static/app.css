@@ -54,14 +54,27 @@ html[data-theme="light"] .button{color:#fff}
 .alert{margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line)}
 .alert--error{border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.12);color:#ffd7d7}
 .alert--ok{border-color:rgba(110,168,254,.35);background:rgba(110,168,254,.12);color:#dbe7ff}
-.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;height:100vh}
 .overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.35);
   opacity:0;pointer-events:none;transition:opacity .18s ease;
   z-index:20;
 }
 html[data-sidebar="open"] .overlay{opacity:1;pointer-events:auto}
-.sidebar{border-right:1px solid var(--line);background:var(--panel);backdrop-filter: blur(10px);padding:18px;padding-bottom:calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:18px}
+.sidebar{
+  border-right:1px solid var(--line);
+  background:var(--panel);
+  backdrop-filter: blur(10px);
+  padding:18px;
+  padding-bottom:calc(18px + env(safe-area-inset-bottom));
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow:auto;
+}
 .sidebar__brand{padding:6px 8px}
 .sidebar__nav{display:flex;flex-direction:column;gap:8px}
 .sidebar__footer{margin-top:auto}
@@ -72,8 +85,8 @@ html[data-sidebar="open"] .overlay{opacity:1;pointer-events:auto}
 .sideitem--danger:hover{border-color:transparent;background:rgba(255,107,107,.12);color:var(--text)}
 .sideitem:focus{outline:none}
 .sideitem:focus-visible{outline:2px solid rgba(110,168,254,.55);outline-offset:2px}
-.main{display:flex;flex-direction:column;min-width:0}
-.topmenu{position:sticky;top:0;border-bottom:1px solid var(--line);background:var(--panel);backdrop-filter: blur(10px);z-index:10}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.topmenu{position:sticky;top:0;border-bottom:1px solid var(--line);background:var(--panel);backdrop-filter: blur(10px);z-index:10;flex:0 0 auto}
 .topmenu__inner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px 18px}
 .topmenu__left{display:flex;align-items:center;gap:10px}
 .welcome{font-size:14px;color:var(--muted);justify-self:start;text-align:left}
@@ -86,11 +99,16 @@ html[data-sidebar="open"] .overlay{opacity:1;pointer-events:auto}
 .iconbtn__moon{display:inline}
 html[data-theme="light"] .iconbtn__sun{display:inline}
 html[data-theme="light"] .iconbtn__moon{display:none}
-.content{padding:18px}
+.content{padding:18px;flex:1 1 auto;overflow:auto}
 .content{min-width:0}
-.tablewrap{border-radius:12px;border:1px solid var(--line)}
-.tablewrap__x{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
-.tablewrap{max-width:100%}
+.tablewrap{
+  width:100%;
+  max-width:1200px; /* evita que se estire demasiado en pantallas grandes */
+  margin:0 auto;
+  border-radius:12px;
+  border:1px solid var(--line);
+}
+.tablewrap__x{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
 .table{width:100%;border-collapse:collapse;min-width:760px;background:var(--input)}
 .table th,.table td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
 .table th{position:sticky;top:0;background:var(--thead)}
@@ -123,6 +141,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 @media (max-width: 900px){
   .app{grid-template-columns:1fr}
   .welcome{justify-self:center;text-align:center}
+  .main{height:100dvh}
 
   /* sidebar as drawer */
   .sidebar{
@@ -171,13 +190,10 @@ html[data-theme="light"] .iconbtn__moon{display:none}
   background:var(--card);
   color:var(--text);
   box-shadow:0 12px 30px var(--shadow);
-  opacity:0;
-  transform:translateY(-4px);
-  pointer-events:none;
-  transition:opacity .12s ease, transform .12s ease;
+  display:none; /* evita que agregue ancho/scroll "fantasma" */
   z-index:50;
 }
 .tooltip__panel pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;line-height:1.35}
-.tooltip:hover .tooltip__panel{opacity:1;transform:translateY(0);pointer-events:auto}
+.tooltip:hover .tooltip__panel{display:block}
 
 
