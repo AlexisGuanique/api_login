@@ -133,20 +133,17 @@ html[data-theme="light"] .iconbtn__moon{display:none}
     border-right:1px solid var(--line);
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
-    /* espacio extra para que el bottom bar del navegador (iOS Chrome) no tape el último item */
-    padding-bottom:calc(18px + env(safe-area-inset-bottom) + 64px);
+    /* espacio extra leve para que el bottom bar del navegador (iOS Chrome) no tape el último item */
+    padding-bottom:calc(18px + env(safe-area-inset-bottom) + 18px);
   }
   html[data-sidebar="open"] .sidebar{transform:translateX(0)}
 
   .iconbtn--hamburger{display:inline-flex}
   .sidebar__footer{
     margin-top:auto;
-    position:sticky;
-    bottom:0;
-    padding-top:12px;
-    padding-bottom:calc(10px + env(safe-area-inset-bottom) + 64px);
-    background:transparent;
-    backdrop-filter:none;
+    position:static; /* evita que "Salír" flote y se desordene en landscape */
+    padding-top:0;
+    padding-bottom:0;
   }
   .content{padding:14px}
   .table{min-width:560px}
