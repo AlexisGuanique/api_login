@@ -79,7 +79,18 @@ sudo docker run -d \
 
 # Esperar a que el contenedor esté listo
 echo "Esperando a que el contenedor esté listo..."
-sleep 5
+sleep 10
+
+# Verificar que el contenedor esté corriendo (no reiniciándose)
+echo "Verificando estado del contenedor..."
+CONTAINER_STATUS=$(sudo docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "not_found")
+if [ "$CONTAINER_STATUS" != "running" ]; then
+    echo "❌ Error: El contenedor no está corriendo. Estado: $CONTAINER_STATUS"
+    echo "📋 Mostrando logs del contenedor:"
+    sudo docker logs "$CONTAINER_NAME" 2>&1 | tail -50
+    exit 1
+fi
+echo "✅ Contenedor está corriendo correctamente"
 
 # Verificar si las tablas ya existen antes de aplicar migraciones
 echo "Verificando estado de la base de datos..."

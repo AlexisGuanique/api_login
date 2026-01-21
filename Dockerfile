@@ -14,17 +14,17 @@ COPY . /api_login
 ENV PYTHONPATH=/api_login
 ENV FLASK_APP=app:app
 ENV FLASK_ENV=production
+ENV SOCKETIO_ASYNC_MODE=eventlet
 
 EXPOSE 80
 
-# Gunicorn con eventlet para soportar WebSockets
-# -w 4: 4 workers (ajusta según CPU de tu instancia)
+# Usar gunicorn con eventlet worker para soportar WebSockets con Flask-SocketIO
+# -w 1: 1 worker (Flask-SocketIO requiere 1 worker para WebSockets)
 # --timeout 120: timeout para requests largos
 # --worker-class eventlet: necesario para WebSockets con Flask-SocketIO
-# --max-requests 1000: reinicia workers después de 1000 requests (previene memory leaks)
-# --max-requests-jitter 50: variación aleatoria para evitar reinicios simultáneos
-# Para WebSockets con Flask-SocketIO, usar eventlet directamente
-# Alternativa: gunicorn con eventlet worker (comentado abajo)
-CMD ["python", "-m", "eventlet.wsgi", "--bind", "0.0.0.0:80", "--listen", "1000", "app:app"]
-# Alternativa con gunicorn (descomentar si prefieres):
-# CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:80", "--timeout", "120", "--worker-class", "eventlet", "--worker-connections", "1000", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+# --worker-connections 1000: máximo de conexiones por worker
+# --bind 0.0.0.0:80: escuchar en todas las interfaces en puerto 80
+# --access-logfile -: mostrar logs de acceso en stdout
+# --error-logfile -: mostrar logs de error en stdout
+# --log-level info: nivel de logging
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:80", "--timeout", "120", "--worker-class", "eventlet", "--worker-connections", "1000", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:app"]
