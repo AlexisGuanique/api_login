@@ -360,12 +360,18 @@
         // Normalizar el string ISO: asegurar que tenga información de zona horaria
         let normalizedIso = isoString.trim();
         
+        console.log('🔍 Formateando fecha:', {
+          original: isoString,
+          normalized: normalizedIso
+        });
+        
         // Si termina con 'Z', es UTC - JavaScript lo parsea correctamente
         // Si tiene offset [+-]HH:MM, JavaScript también lo parsea correctamente
         // Si no tiene timezone info, asumir que es UTC y agregar 'Z'
         if (!normalizedIso.endsWith('Z') && !normalizedIso.match(/[+-]\d{2}:\d{2}$/)) {
           // Si no tiene timezone info, agregar 'Z' para indicar UTC
           normalizedIso += 'Z';
+          console.log('   ➕ Agregado "Z" para indicar UTC:', normalizedIso);
         }
         
         // Crear objeto Date desde ISO string
@@ -374,9 +380,35 @@
         
         // Verificar si la fecha es válida
         if (isNaN(date.getTime())) {
-          console.warn('Fecha inválida:', isoString, 'normalizada como:', normalizedIso);
+          console.warn('❌ Fecha inválida:', isoString, 'normalizada como:', normalizedIso);
           return ''; // Devolver vacío si no es válida
         }
+        
+        // Verificar si la fecha es razonable (no más de 10 años en el futuro o pasado)
+        const now = new Date();
+        const tenYearsFromNow = new Date(now.getTime() + (10 * 365 * 24 * 60 * 60 * 1000));
+        const tenYearsAgo = new Date(now.getTime() - (10 * 365 * 24 * 60 * 60 * 1000));
+        
+        if (date > tenYearsFromNow || date < tenYearsAgo) {
+          console.warn('⚠️ Fecha fuera de rango razonable:', {
+            fecha: date.toISOString(),
+            ahora: now.toISOString(),
+            diferencia: (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24), // días
+            isoOriginal: isoString
+          });
+          // Aún así intentar formatearla, pero con advertencia
+        }
+        
+        // Log de depuración
+        const utcString = date.toUTCString();
+        const localString = date.toString();
+        console.log('📅 Fecha parseada:', {
+          iso: normalizedIso,
+          utc: utcString,
+          local: localString,
+          timestamp: date.getTime(),
+          diferenciaHoras: (date.getTime() - now.getTime()) / (1000 * 60 * 60)
+        });
         
         // Formatear a dd-mm-YYYY HH:MM en hora local del navegador
         // getDate(), getMonth(), getHours(), etc. ya devuelven valores en la zona horaria local
@@ -386,19 +418,25 @@
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         
-        return `${day}-${month}-${year} ${hours}:${minutes}`;
+        const formatted = `${day}-${month}-${year} ${hours}:${minutes}`;
+        console.log('✅ Fecha formateada:', formatted);
+        
+        return formatted;
       } catch (e) {
-        console.error('Error formateando fecha:', e, 'ISO string:', isoString);
+        console.error('❌ Error formateando fecha:', e, 'ISO string:', isoString);
         return '';
       }
     }
 
     // Convertir todas las fechas a zona horaria local al cargar la página
     function convertAllDatesToLocal() {
-      document.querySelectorAll('.last-seen-time[data-last-seen]').forEach(element => {
+      console.log('🔄 Convirtiendo todas las fechas a zona horaria local...');
+      
+      document.querySelectorAll('.last-seen-time[data-last-seen]').forEach((element, index) => {
         const isoString = element.getAttribute('data-last-seen');
         const timeValueElement = element.querySelector('.time-value');
         if (timeValueElement && isoString && isoString !== 'None' && isoString.trim() !== '') {
+          console.log(`   📅 Última vez [${index}]:`, isoString);
           const localTime = formatLocalDateTime(isoString);
           if (localTime) {
             timeValueElement.textContent = localTime;
@@ -407,16 +445,19 @@
       });
       
       // Convertir también las fechas de próximo ciclo
-      document.querySelectorAll('.next-cycle-time[data-next-cycle]').forEach(element => {
+      document.querySelectorAll('.next-cycle-time[data-next-cycle]').forEach((element, index) => {
         const isoString = element.getAttribute('data-next-cycle');
         const timeValueElement = element.querySelector('.time-value');
         if (timeValueElement && isoString && isoString !== 'None' && isoString.trim() !== '') {
+          console.log(`   📅 Próximo ciclo [${index}]:`, isoString);
           const localTime = formatLocalDateTime(isoString);
           if (localTime) {
             timeValueElement.textContent = localTime;
           }
         }
       });
+      
+      console.log('✅ Conversión de fechas completada');
     }
 
     // Agregar event listeners a los botones cuando se carga la página
