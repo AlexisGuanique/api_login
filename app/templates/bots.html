@@ -60,7 +60,7 @@
               </div>
               <div class="bot-card__status">
                 <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
-                <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">{{ bot.last_seen|fmt_dt }}</span></span>
+                <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">Cargando...</span></span>
               </div>
               <div class="bot-card__actions">
                 {% if bot.status == 'online' or bot.status == 'stopped' or bot.status == 'running' %}
@@ -95,10 +95,10 @@
               </div>
               <div class="bot-card__status">
                 <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
-                <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">{{ bot.last_seen|fmt_dt }}</span></span>
+                <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">Cargando...</span></span>
                 {% if bot.bot_type == 'logueador' %}
                   {% if bot.next_cycle_at %}
-                    <span class="muted small next-cycle-time" data-next-cycle="{{ bot.next_cycle_at }}" style="display: block; margin-top: 4px;">Próximo ciclo: <span class="time-value">{{ bot.next_cycle_at|fmt_dt }}</span></span>
+                    <span class="muted small next-cycle-time" data-next-cycle="{{ bot.next_cycle_at }}" style="display: block; margin-top: 4px;">Próximo ciclo: <span class="time-value">Cargando...</span></span>
                   {% else %}
                     <span class="muted small" style="display: block; margin-top: 4px; font-style: italic;">Próximo ciclo: No calculado aún</span>
                   {% endif %}
@@ -357,23 +357,29 @@
       }
       
       try {
-        // Normalizar el string ISO: si no tiene 'Z' ni offset, asumir que es UTC
+        // Normalizar el string ISO: asegurar que tenga información de zona horaria
         let normalizedIso = isoString.trim();
+        
+        // Si termina con 'Z', es UTC - JavaScript lo parsea correctamente
+        // Si tiene offset [+-]HH:MM, JavaScript también lo parsea correctamente
+        // Si no tiene timezone info, asumir que es UTC y agregar 'Z'
         if (!normalizedIso.endsWith('Z') && !normalizedIso.match(/[+-]\d{2}:\d{2}$/)) {
           // Si no tiene timezone info, agregar 'Z' para indicar UTC
           normalizedIso += 'Z';
         }
         
-        // Crear objeto Date desde ISO string (JavaScript automáticamente convierte UTC a hora local)
+        // Crear objeto Date desde ISO string
+        // JavaScript automáticamente convierte UTC a la zona horaria local del navegador
         const date = new Date(normalizedIso);
         
         // Verificar si la fecha es válida
         if (isNaN(date.getTime())) {
-          console.warn('Fecha inválida:', isoString);
+          console.warn('Fecha inválida:', isoString, 'normalizada como:', normalizedIso);
           return ''; // Devolver vacío si no es válida
         }
         
         // Formatear a dd-mm-YYYY HH:MM en hora local del navegador
+        // getDate(), getMonth(), getHours(), etc. ya devuelven valores en la zona horaria local
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
@@ -415,8 +421,11 @@
 
     // Agregar event listeners a los botones cuando se carga la página
     document.addEventListener('DOMContentLoaded', function() {
-      // Convertir fechas a zona horaria local
+      // Convertir fechas a zona horaria local inmediatamente
       convertAllDatesToLocal();
+      
+      // También convertir después de un pequeño delay para asegurar que todo esté renderizado
+      setTimeout(convertAllDatesToLocal, 100);
       // Manejo de pestañas
       const tabButtons = document.querySelectorAll('.tab-button');
       const tabContents = document.querySelectorAll('.tab-content');
