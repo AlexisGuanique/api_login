@@ -221,7 +221,7 @@ sudo docker exec "$CONTAINER_NAME" python -c "
 from sqlalchemy import inspect
 from app import create_app
 from app.database import db
-app = create_app()
+app, _ = create_app()  # create_app devuelve (app, socketio)
 with app.app_context():
     inspector = inspect(db.engine)
     columns = [col['name'] for col in inspector.get_columns('bot')]
