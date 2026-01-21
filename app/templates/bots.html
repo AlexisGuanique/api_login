@@ -96,8 +96,12 @@
               <div class="bot-card__status">
                 <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
                 <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">{{ bot.last_seen|fmt_dt }}</span></span>
-                {% if bot.bot_type == 'logueador' and bot.next_cycle_at %}
-                  <span class="muted small next-cycle-time" data-next-cycle="{{ bot.next_cycle_at }}" style="display: block; margin-top: 4px;">Próximo ciclo: <span class="time-value">{{ bot.next_cycle_at|fmt_dt }}</span></span>
+                {% if bot.bot_type == 'logueador' %}
+                  {% if bot.next_cycle_at %}
+                    <span class="muted small next-cycle-time" data-next-cycle="{{ bot.next_cycle_at }}" style="display: block; margin-top: 4px;">Próximo ciclo: <span class="time-value">{{ bot.next_cycle_at|fmt_dt }}</span></span>
+                  {% else %}
+                    <span class="muted small" style="display: block; margin-top: 4px; font-style: italic;">Próximo ciclo: No calculado aún</span>
+                  {% endif %}
                 {% endif %}
               </div>
               <div class="bot-card__actions">

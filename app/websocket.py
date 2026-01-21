@@ -298,6 +298,10 @@ def register_socketio_handlers(socketio):
                 print(f"⚠️  Estado inválido recibido: {new_status}")
                 return
             
+            # Debug: mostrar datos recibidos
+            if 'next_cycle_at' in data:
+                print(f"📨 status_update recibido de {bot.name}: status={new_status}, next_cycle_at={data.get('next_cycle_at')}")
+            
             # Actualizar estado del bot
             bot.status = new_status
             bot.last_seen = datetime.utcnow()
@@ -336,6 +340,8 @@ def register_socketio_handlers(socketio):
             }, room=f'user_{bot.user_id}')
             
             print(f"✅ Estado actualizado: {bot.name} -> {new_status}")
+            if bot.next_cycle_at:
+                print(f"   📅 next_cycle_at guardado: {bot.next_cycle_at}")
             
         except Exception as e:
             print(f"❌ Error en status_update: {e}")
