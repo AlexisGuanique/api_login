@@ -10,6 +10,7 @@ from app.database import db
 from app.models.account import Account
 from app.models.email import Email
 from app.models.user import User
+from app.models.bot import Bot
 
 
 web_bp = Blueprint("web", __name__)
@@ -295,5 +296,39 @@ def user_profile_post():
     session["name"] = user.name
     session["lastname"] = user.lastname
     return render_template("user.html", user=user, success="Datos actualizados")
+
+
+@web_bp.get("/bots")
+def bots():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    # Limpiar bots que tienen socket_id = None pero estado != 'offline'
+    # Esto corrige cualquier inconsistencia en la base de datos
+    from app.database import db
+    from datetime import datetime
+    bots_to_fix = Bot.query.filter_by(user_id=user.id).filter(
+        (Bot.socket_id.is_(None)) | (Bot.socket_id == ''),
+        Bot.status != 'offline'
+    ).all()
+    
+    if bots_to_fix:
+        for bot in bots_to_fix:
+            bot.status = 'offline'
+        db.session.commit()
+    
+    bots_list = Bot.query.filter_by(user_id=user.id).order_by(Bot.last_seen.desc()).all()
+    
+    return render_template(
+        "bots.html",
+        user=user,
+        bots=[b.to_dict() for b in bots_list],
+    )
 
 

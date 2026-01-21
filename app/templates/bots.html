@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="pagehead">
+    <div>
+      <h1 class="h1">Bots</h1>
+      <div class="muted">{{ bots|length }} total</div>
+    </div>
+  </div>
+
+  <section class="card" data-user-id="{{ user.id }}">
+    {% set creadores = bots|selectattr('bot_type', 'equalto', 'creador')|list %}
+    {% set logueadores = bots|selectattr('bot_type', 'equalto', 'logueador')|list %}
+    
+    <!-- Pestañas -->
+    <div class="tabs" style="display: flex; border-bottom: 2px solid var(--border-color, #e1e4e8); margin-bottom: 20px;">
+      <button class="tab-button tab-button--active" data-tab="creadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid var(--primary-color, #0366d6); color: var(--text-color, #24292e); cursor: pointer; font-size: 14px; font-weight: 500;">
+        🎨 Creadores <span class="tab-count">({{ creadores|length }})</span>
+      </button>
+      <button class="tab-button" data-tab="logueadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-color-muted, #586069); cursor: pointer; font-size: 14px; font-weight: 500;">
+        ✅ Logueadores <span class="tab-count">({{ logueadores|length }})</span>
+      </button>
+    </div>
+
+    <!-- Contenido de pestaña Creadores -->
+    <div class="tab-content" id="tab-creadores" data-bot-type="creador">
+      {% if creadores|length > 0 %}
+        <div class="bots-list">
+          {% for bot in creadores %}
+            <div class="bot-card" data-bot-id="{{ bot.id }}" data-bot-type="{{ bot.bot_type }}">
+              <div class="bot-card__header">
+                <div class="bot-card__name">{{ bot.name }}</div>
+                <div class="bot-card__type">{{ bot.bot_type }}</div>
+              </div>
+              <div class="bot-card__status">
+                <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
+                <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">{{ bot.last_seen|fmt_dt }}</span></span>
+              </div>
+              <div class="bot-card__actions">
+                {% if bot.status == 'online' or bot.status == 'stopped' or bot.status == 'running' %}
+                  {% if bot.status == 'running' %}
+                    <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
+                  {% else %}
+                    <button class="button button--small button--primary" data-bot-id="{{ bot.id }}" data-command="execute_creator">Ejecutar Creator</button>
+                    <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
+                  {% endif %}
+                {% else %}
+                  <span class="muted small">Bot desconectado</span>
+                {% endif %}
+                <button class="button button--small button--danger" data-bot-id="{{ bot.id }}" data-action="delete">Eliminar</button>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">No hay bots creadores registrados. Conecta un bot para verlo aquí.</div>
+      {% endif %}
+    </div>
+
+    <!-- Contenido de pestaña Logueadores -->
+    <div class="tab-content" id="tab-logueadores" data-bot-type="logueador" style="display: none;">
+      {% if logueadores|length > 0 %}
+        <div class="bots-list">
+          {% for bot in logueadores %}
+            <div class="bot-card" data-bot-id="{{ bot.id }}" data-bot-type="{{ bot.bot_type }}">
+              <div class="bot-card__header">
+                <div class="bot-card__name">{{ bot.name }}</div>
+                <div class="bot-card__type">{{ bot.bot_type }}</div>
+              </div>
+              <div class="bot-card__status">
+                <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
+                <span class="muted small last-seen-time" data-last-seen="{{ bot.last_seen }}">Última vez: <span class="time-value">{{ bot.last_seen|fmt_dt }}</span></span>
+              </div>
+              <div class="bot-card__actions">
+                {% if bot.status == 'online' or bot.status == 'stopped' or bot.status == 'running' %}
+                  {% if bot.status == 'running' %}
+                    <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
+                  {% else %}
+                    <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="start">Iniciar</button>
+                    <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
+                  {% endif %}
+                {% else %}
+                  <span class="muted small">Bot desconectado</span>
+                {% endif %}
+                <button class="button button--small button--danger" data-bot-id="{{ bot.id }}" data-action="delete">Eliminar</button>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="muted">No hay bots logueadores registrados. Conecta un bot para verlo aquí.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script>
+    // Conectar WebSocket para recibir actualizaciones en tiempo real
+    const socket = io();
+    const userId = parseInt(document.querySelector('[data-user-id]')?.getAttribute('data-user-id') || '0');
+
+    // Unirse a la sala del usuario
+    socket.emit('join_user_room', { user_id: userId });
+
+    // Función para actualizar el estado del bot en la UI
+    function updateBotStatusUI(botId, newStatus) {
+      const botCard = document.querySelector(`[data-bot-id="${botId}"]`);
+      if (!botCard) return;
+      
+      // Actualizar badge de estado
+      const statusBadge = botCard.querySelector('.status-badge');
+      if (statusBadge) {
+        statusBadge.className = `status-badge status-badge--${newStatus}`;
+        statusBadge.textContent = newStatus;
+      }
+      
+      // Actualizar botones según el nuevo estado
+      const actionsContainer = botCard.querySelector('.bot-card__actions');
+      if (actionsContainer) {
+        const botType = botCard.getAttribute('data-bot-type');
+        let newButtonsHTML = '';
+        
+        if (newStatus === 'online' || newStatus === 'stopped' || newStatus === 'running') {
+          if (botType === 'creador') {
+            if (newStatus === 'running') {
+              newButtonsHTML = `
+                <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
+              `;
+            } else {
+              newButtonsHTML = `
+                <button class="button button--small button--primary" data-bot-id="${botId}" data-command="execute_creator">Ejecutar Creator</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
+              `;
+            }
+          } else {
+            // logueador
+            if (newStatus === 'running') {
+              newButtonsHTML = `
+                <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
+              `;
+            } else {
+              newButtonsHTML = `
+                <button class="button button--small" data-bot-id="${botId}" data-command="start">Iniciar</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
+              `;
+            }
+          }
+        } else {
+          newButtonsHTML = `
+            <span class="muted small">Bot desconectado</span>
+            <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
+          `;
+        }
+        
+        actionsContainer.innerHTML = newButtonsHTML;
+        
+        // Guardar texto original de los nuevos botones
+        actionsContainer.querySelectorAll('[data-command]').forEach(button => {
+          if (!button.getAttribute('data-original-text')) {
+            button.setAttribute('data-original-text', button.textContent);
+          }
+        });
+      }
+    }
+
+    // Escuchar cambios de estado de bots desde el servidor
+    socket.on('bot_status_changed', (data) => {
+      updateBotStatusUI(data.bot_id, data.status);
+    });
+
+    function sendCommand(botId, command) {
+      return fetch(`/api/bots/command/${botId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ command: command }),
+        credentials: 'include'
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          alert('Error: ' + data.error);
+          throw new Error(data.error);
+        } else {
+          // Mostrar mensaje de éxito más amigable
+          const commandNames = {
+            'start': 'Iniciar',
+            'stop': 'Detener',
+            'execute_creator': 'Ejecutar Creator',
+            'restart': 'Reiniciar'
+          };
+          const commandName = commandNames[command] || command;
+          
+          // Determinar el nuevo estado según el comando
+          let newStatus = null;
+          if (command === 'execute_creator' || command === 'start') {
+            newStatus = 'running';
+          } else if (command === 'stop') {
+            newStatus = 'stopped';
+          }
+          
+          // Mostrar alert y actualizar UI
+          alert(`✅ Comando "${commandName}" enviado exitosamente al bot`);
+          
+          // Actualizar UI inmediatamente si conocemos el nuevo estado
+          if (newStatus) {
+            updateBotStatusUI(botId, newStatus);
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        alert('❌ Error al enviar comando: ' + (err.message || 'Error desconocido'));
+        throw err;
+      });
+    }
+
+    function deleteBot(botId) {
+      if (!confirm('¿Estás seguro de eliminar este bot?')) return;
+      
+      fetch(`/api/bots/${botId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          location.reload();
+        }
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        alert('Error al eliminar bot');
+      });
+    }
+
+    // Función para convertir fecha ISO a zona horaria local
+    function formatLocalDateTime(isoString) {
+      if (!isoString || isoString === 'None' || isoString.trim() === '') {
+        return '';
+      }
+      
+      try {
+        // Normalizar el string ISO: si no tiene 'Z' ni offset, asumir que es UTC
+        let normalizedIso = isoString.trim();
+        if (!normalizedIso.endsWith('Z') && !normalizedIso.match(/[+-]\d{2}:\d{2}$/)) {
+          // Si no tiene timezone info, agregar 'Z' para indicar UTC
+          normalizedIso += 'Z';
+        }
+        
+        // Crear objeto Date desde ISO string (JavaScript automáticamente convierte UTC a hora local)
+        const date = new Date(normalizedIso);
+        
+        // Verificar si la fecha es válida
+        if (isNaN(date.getTime())) {
+          console.warn('Fecha inválida:', isoString);
+          return ''; // Devolver vacío si no es válida
+        }
+        
+        // Formatear a dd-mm-YYYY HH:MM en hora local del navegador
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        
+        return `${day}-${month}-${year} ${hours}:${minutes}`;
+      } catch (e) {
+        console.error('Error formateando fecha:', e, 'ISO string:', isoString);
+        return '';
+      }
+    }
+
+    // Convertir todas las fechas a zona horaria local al cargar la página
+    function convertAllDatesToLocal() {
+      document.querySelectorAll('.last-seen-time[data-last-seen]').forEach(element => {
+        const isoString = element.getAttribute('data-last-seen');
+        const timeValueElement = element.querySelector('.time-value');
+        if (timeValueElement && isoString && isoString !== 'None' && isoString.trim() !== '') {
+          const localTime = formatLocalDateTime(isoString);
+          if (localTime) {
+            timeValueElement.textContent = localTime;
+          }
+        }
+      });
+    }
+
+    // Agregar event listeners a los botones cuando se carga la página
+    document.addEventListener('DOMContentLoaded', function() {
+      // Convertir fechas a zona horaria local
+      convertAllDatesToLocal();
+      // Manejo de pestañas
+      const tabButtons = document.querySelectorAll('.tab-button');
+      const tabContents = document.querySelectorAll('.tab-content');
+      
+      tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const targetTab = this.getAttribute('data-tab');
+          
+          // Remover clase activa de todos los botones
+          tabButtons.forEach(btn => {
+            btn.classList.remove('tab-button--active');
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = 'var(--text-color-muted, #586069)';
+          });
+          
+          // Agregar clase activa al botón clickeado
+          this.classList.add('tab-button--active');
+          this.style.borderBottomColor = 'var(--primary-color, #0366d6)';
+          this.style.color = 'var(--text-color, #24292e)';
+          
+          // Ocultar todos los contenidos
+          tabContents.forEach(content => {
+            content.style.display = 'none';
+          });
+          
+          // Mostrar el contenido correspondiente
+          const targetContent = document.getElementById(`tab-${targetTab}`);
+          if (targetContent) {
+            targetContent.style.display = 'block';
+          }
+        });
+      });
+      
+      // Event listener para botones de comandos (start, stop, execute_creator)
+      document.addEventListener('click', function(e) {
+        const button = e.target.closest('[data-command]');
+        if (button) {
+          const botId = parseInt(button.getAttribute('data-bot-id'));
+          const command = button.getAttribute('data-command');
+          
+          if (botId && command) {
+            // Deshabilitar el botón mientras se procesa
+            button.disabled = true;
+            button.textContent = 'Enviando...';
+            
+            sendCommand(botId, command).then(() => {
+              // Rehabilitar el botón después de un momento
+              setTimeout(() => {
+                button.disabled = false;
+                button.textContent = button.getAttribute('data-original-text') || button.textContent;
+              }, 1000);
+            }).catch(() => {
+              button.disabled = false;
+              button.textContent = button.getAttribute('data-original-text') || button.textContent;
+            });
+          }
+        }
+      });
+
+      // Event listener para botón de eliminar
+      document.addEventListener('click', function(e) {
+        const button = e.target.closest('[data-action="delete"]');
+        if (button) {
+          const botId = parseInt(button.getAttribute('data-bot-id'));
+          if (botId) {
+            deleteBot(botId);
+          }
+        }
+      });
+
+      // Guardar texto original de los botones para restaurarlo después
+      document.querySelectorAll('[data-command]').forEach(button => {
+        if (!button.getAttribute('data-original-text')) {
+          button.setAttribute('data-original-text', button.textContent);
+        }
+      });
+    });
+  </script>
+{% endblock %}
+

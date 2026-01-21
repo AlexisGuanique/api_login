@@ -1,9 +1,11 @@
 import os
 from flask import Flask, jsonify, redirect, url_for
 from flask_migrate import Migrate
+from flask_socketio import SocketIO
 from app.controllers.users import auth_bp
 from app.controllers.emails import emails_bp
 from app.controllers.accounts import accounts_bp
+from app.controllers.bots import bots_bp
 from app.web import web_bp
 from app.database import init_db
 from app.database import db
@@ -14,6 +16,7 @@ from dotenv import load_dotenv
 from app.models.user import User
 from app.models.email import Email
 from app.models.account import Account
+from app.models.bot import Bot
 
 load_dotenv()
 
@@ -49,11 +52,20 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(emails_bp)
     app.register_blueprint(accounts_bp)
+    app.register_blueprint(bots_bp)
     app.register_blueprint(web_bp, url_prefix="/web")
 
     init_db(app)
 
     migrate = Migrate(app, db)
+    
+    # Inicializar SocketIO para WebSockets
+    # Usar 'threading' para desarrollo (compatible con Python 3.13)
+    # En producción (Docker) usar 'eventlet' vía variable de entorno
+    async_mode = os.getenv('SOCKETIO_ASYNC_MODE', 'threading')
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
+    # Guardar socketio en app para acceso desde otros módulos
+    app.socketio = socketio
 
     @app.route('/')
     def home():
@@ -61,8 +73,59 @@ def create_app():
 
     
 
-    return app
+    return app, socketio
 
 
-# Crear la aplicación
-app = create_app()
+# Crear la aplicación y SocketIO
+app, socketio = create_app()
+
+# Importar handlers de WebSocket después de crear socketio
+from app.websocket import register_socketio_handlers
+register_socketio_handlers(socketio)
+
+
+# Configurar Flask CLI para usar SocketIO cuando se ejecute con 'flask run'
+# Esto intercepta el comando run y usa SocketIO en su lugar
+import click
+from flask.cli import with_appcontext
+
+# Obtener el comando run original de Flask
+try:
+    from flask.cli import run_command as flask_run_command
+except ImportError:
+    flask_run_command = None
+
+@click.command('run')
+@click.option('--host', '-h', default='127.0.0.1', help='El hostname para bind.')
+@click.option('--port', '-p', default=5000, type=int, help='El puerto del servidor.')
+@click.option('--debug', is_flag=True, help='Activar modo debug.')
+@click.option('--reload', is_flag=True, help='Activar auto-reload.')
+@with_appcontext
+def socketio_run_command(host, port, debug, reload):
+    """Ejecuta el servidor Flask con soporte WebSocket usando SocketIO."""
+    print("🚀 Iniciando servidor Flask con WebSockets...")
+    print(f"📡 WebSocket habilitado en http://{host}:{port}")
+    if debug:
+        print("🐛 Modo debug activado")
+    socketio.run(
+        app,
+        host=host,
+        port=port,
+        debug=debug,
+        use_reloader=reload or debug,
+        allow_unsafe_werkzeug=True  # Necesario para desarrollo con threading
+    )
+
+# Reemplazar el comando run de Flask CLI
+try:
+    # Intentar reemplazar el comando run
+    if hasattr(app, 'cli'):
+        # Eliminar el comando run existente si existe
+        if 'run' in app.cli.commands:
+            del app.cli.commands['run']
+        app.cli.add_command(socketio_run_command)
+except Exception as e:
+    # Si falla, al menos intentar sobrescribir app.run
+    print(f"⚠️  No se pudo registrar el comando CLI personalizado: {e}")
+    print("   Usa 'python app.py' o 'python -m app' para ejecutar con WebSockets")
+    pass
