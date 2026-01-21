@@ -177,11 +177,15 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 .sortlink{color:var(--text);text-decoration:none;white-space:nowrap}
 .sortlink:hover{text-decoration:underline;color:var(--accent)}
 
-.tooltip{position:relative;display:inline-block;max-width:260px}
+.tooltip{position:relative;display:inline-block;max-width:260px;padding-bottom:10px}
 .tooltip__trigger{display:inline-block;max-width:260px}
 .tooltip__panel{
-  position:absolute;left:0;top:calc(100% + 8px);
-  width:min(560px, 70vw);
+  position:absolute;
+  left:50%;
+  top:100%;
+  margin-top:8px;
+  transform:translateX(-50%);
+  width:min(560px, 90vw);
   max-height:240px;
   overflow:auto;
   padding:10px 12px;
@@ -195,5 +199,6 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 }
 .tooltip__panel pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;line-height:1.35}
 .tooltip:hover .tooltip__panel{display:block}
+.tooltip:focus-within .tooltip__panel{display:block}
 
 
