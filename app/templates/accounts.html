@@ -26,20 +26,16 @@
         <table class="table">
         <thead>
           <tr>
-            <th>{{ sort_link('ID', 'id') }}</th>
             <th>{{ sort_link('Email', 'email') }}</th>
             <th>{{ sort_link('Password', 'password') }}</th>
             <th>{{ sort_link('Cookie', 'cookie') }}</th>
             <th>{{ sort_link('User-Agent', 'user_agent') }}</th>
-            <th>{{ sort_link('Created', 'created_at') }}</th>
-            <th>{{ sort_link('Updated', 'updated_at') }}</th>
-            <th>{{ sort_link('User ID', 'user_id') }}</th>
+            <th>{{ sort_link('Creado', 'created_at') }}</th>
           </tr>
         </thead>
         <tbody>
           {% for a in accounts %}
             <tr>
-              <td>{{ a.id }}</td>
               <td><code>{{ a.email }}</code></td>
               <td><code>{{ a.password }}</code></td>
               <td>
@@ -51,14 +47,20 @@
                   <span class="tooltip__panel"><pre>{{ c }}</pre></span>
                 </span>
               </td>
-              <td class="truncate" title="{{ a.user_agent }}">{{ a.user_agent }}</td>
-              <td class="muted">{{ a.created_at }}</td>
-              <td class="muted">{{ a.updated_at }}</td>
-              <td>{{ a.user_id }}</td>
+              <td>
+                {% set ua = a.user_agent or '' %}
+                <span class="tooltip">
+                  <span class="tooltip__trigger">
+                    <span class="truncate">{{ (ua[:28] ~ '…') if (ua|length > 28) else ua }}</span>
+                  </span>
+                  <span class="tooltip__panel"><pre>{{ ua }}</pre></span>
+                </span>
+              </td>
+              <td class="muted">{{ a.created_at|fmt_dt }}</td>
             </tr>
           {% endfor %}
           {% if accounts|length == 0 %}
-            <tr><td colspan="8" class="muted">No hay cuentas para mostrar.</td></tr>
+            <tr><td colspan="5" class="muted">No hay cuentas para mostrar.</td></tr>
           {% endif %}
         </tbody>
         </table>

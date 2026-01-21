@@ -26,27 +26,23 @@
         <table class="table">
         <thead>
           <tr>
-            <th>{{ sort_link('ID', 'id') }}</th>
             <th>{{ sort_link('Email', 'email') }}</th>
             <th>{{ sort_link('Status', 'status') }}</th>
             <th>{{ sort_link('Usage', 'usage_count') }}</th>
-            <th>{{ sort_link('Created', 'created_at') }}</th>
-            <th>{{ sort_link('User ID', 'user_id') }}</th>
+            <th>{{ sort_link('Creado', 'created_at') }}</th>
           </tr>
         </thead>
         <tbody>
           {% for e in emails %}
             <tr>
-              <td>{{ e.id }}</td>
               <td><code>{{ e.email }}</code></td>
               <td>{{ e.status }}</td>
               <td>{{ e.usage_count }}</td>
-              <td class="muted">{{ e.created_at }}</td>
-              <td>{{ e.user_id }}</td>
+              <td class="muted">{{ e.created_at|fmt_dt }}</td>
             </tr>
           {% endfor %}
           {% if emails|length == 0 %}
-            <tr><td colspan="6" class="muted">No hay emails para mostrar.</td></tr>
+            <tr><td colspan="4" class="muted">No hay emails para mostrar.</td></tr>
           {% endif %}
         </tbody>
         </table>

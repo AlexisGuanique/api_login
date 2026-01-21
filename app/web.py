@@ -14,6 +14,28 @@ from app.models.user import User
 
 web_bp = Blueprint("web", __name__)
 
+@web_bp.app_template_filter("fmt_dt")
+def fmt_dt(value) -> str:
+    """
+    Formatea datetime/ISO-string a 'dd-mm-aaaa hh:mm' para UI.
+    Acepta: datetime | str (isoformat) | None
+    """
+    if not value:
+        return ""
+    dt = None
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        # Soportar '2026-02-20 03:23:38' y '2026-02-20T03:23:38...'
+        s = value.strip().replace("Z", "").replace("T", " ")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            dt = None
+    if not dt:
+        return str(value)
+    return dt.strftime("%d-%m-%Y %H:%M")
+
 
 def _require_login():
     if not session.get("user_id") or not session.get("access_token"):
