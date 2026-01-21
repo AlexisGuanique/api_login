@@ -1,6 +1,6 @@
 (() => {
   // Tooltip con delay al cerrar para poder mover el mouse al panel y scrollear.
-  const CLOSE_DELAY_MS = 350;
+  const CLOSE_DELAY_MS = 200;
 
   document.querySelectorAll(".tooltip").forEach((el) => {
     let t = null;

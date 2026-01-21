@@ -185,7 +185,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
   top:100%;
   margin-top:8px;
   transform:translateX(-50%);
-  width:min(420px, 88vw);
+  width:min(360px, 85vw);
   max-height:240px;
   overflow:auto;
   padding:10px 12px;
