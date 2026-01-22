@@ -30,6 +30,28 @@ def get_user_bots(user_id):
         return jsonify({"error": f"Error al obtener los bots: {str(e)}"}), 500
 
 
+#! ENDPOINT PARA OBTENER TODOS LOS BOTS DEL USUARIO ACTUAL (vía sesión)
+@bots_bp.route('/status', methods=['GET'])
+@session_or_token_required
+def get_bots_status():
+    """Obtiene el estado actual de todos los bots del usuario autenticado"""
+    try:
+        user_id = request.current_user.id
+        bots = Bot.query.filter_by(user_id=user_id).order_by(Bot.last_seen.desc()).all()
+        
+        bots_list = [bot.to_dict() for bot in bots]
+        
+        return jsonify({
+            "message": "Estado de bots obtenido exitosamente",
+            "user_id": user_id,
+            "bots": bots_list,
+            "count": len(bots_list)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Error al obtener el estado de los bots: {str(e)}"}), 500
+
+
 #! ENDPOINT PARA ENVIAR COMANDO A UN BOT
 @bots_bp.route('/command/<int:bot_id>', methods=['POST'])
 @session_or_token_required
@@ -54,6 +76,27 @@ def send_command(bot_id):
         if not bot.socket_id or bot.status == 'offline':
             return jsonify({"error": "Bot no está conectado"}), 400
         
+        # Verificar el estado actual del bot antes de enviar el comando
+        # Si el bot ya está en el estado deseado, devolver el estado real sin enviar comando
+        if command == 'start' or command == 'execute_creator':
+            if bot.status == 'running':
+                return jsonify({
+                    "message": f"El bot ya se está ejecutando. No se puede iniciar otro.",
+                    "bot_id": bot_id,
+                    "command": command,
+                    "current_status": bot.status,
+                    "status_synced": True
+                }), 200
+        elif command == 'stop':
+            if bot.status == 'stopped':
+                return jsonify({
+                    "message": f"El bot ya está detenido.",
+                    "bot_id": bot_id,
+                    "command": command,
+                    "current_status": bot.status,
+                    "status_synced": True
+                }), 200
+        
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
         socketio.emit('command', {
@@ -61,10 +104,12 @@ def send_command(bot_id):
             'bot_id': bot_id
         }, room=bot.socket_id)
         
+        # Devolver el estado actual del bot para sincronizar la UI
         return jsonify({
             "message": f"Comando '{command}' enviado al bot",
             "bot_id": bot_id,
-            "command": command
+            "command": command,
+            "current_status": bot.status
         }), 200
         
     except Exception as e:

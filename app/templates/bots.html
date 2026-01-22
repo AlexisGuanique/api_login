@@ -254,17 +254,22 @@
         if (data.error) {
           throw new Error(data.error);
         } else {
-          // Determinar el nuevo estado según el comando
-          let newStatus = null;
-          if (command === 'execute_creator' || command === 'start') {
-            newStatus = 'running';
-          } else if (command === 'stop') {
-            newStatus = 'stopped';
-          }
-          
-          // Actualizar UI inmediatamente si conocemos el nuevo estado
-          if (newStatus) {
-            updateBotStatusUI(botId, newStatus);
+          // Usar el estado real devuelto por el servidor para sincronizar la UI
+          // Si el servidor devuelve current_status, usarlo para actualizar la UI
+          if (data.current_status) {
+            console.log(`🔄 Sincronizando estado del bot ${botId} con el servidor: ${data.current_status}`);
+            updateBotStatusUI(botId, data.current_status);
+          } else if (data.status_synced) {
+            // Si el servidor indica que el estado ya está sincronizado, no hacer nada
+            // La UI ya debería estar actualizada vía WebSocket
+            console.log(`✅ Estado del bot ${botId} ya está sincronizado: ${data.current_status}`);
+            if (data.current_status) {
+              updateBotStatusUI(botId, data.current_status);
+            }
+          } else {
+            // Si no hay estado devuelto, esperar a que el bot envíe status_update vía WebSocket
+            // No actualizar la UI inmediatamente para evitar desincronización
+            console.log(`⏳ Esperando confirmación de estado del bot ${botId} vía WebSocket...`);
           }
           return data;
         }
@@ -472,6 +477,47 @@
       setTimeout(convertAllDatesToLocal, 100);
       setTimeout(convertAllDatesToLocal, 500);
       setTimeout(convertAllDatesToLocal, 1000);
+      
+      // Función para sincronizar el estado de todos los bots con el servidor
+      async function syncBotsStatus() {
+        try {
+          const response = await fetch(`/api/bots/status`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.bots) {
+              data.bots.forEach(bot => {
+                const botCard = document.querySelector(`[data-bot-id="${bot.id}"]`);
+                if (botCard) {
+                  const statusBadge = botCard.querySelector('.status-badge');
+                  const currentStatus = statusBadge ? statusBadge.textContent.trim() : '';
+                  
+                  // Solo actualizar si el estado es diferente
+                  if (currentStatus !== bot.status) {
+                    console.log(`🔄 Sincronizando bot ${bot.id}: ${currentStatus} -> ${bot.status}`);
+                    updateBotStatusUI(bot.id, bot.status, bot.next_cycle_at);
+                  }
+                }
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error al sincronizar estado de bots:', err);
+        }
+      }
+      
+      // Sincronizar estado de bots al cargar la página (después de un delay para asegurar que todo esté renderizado)
+      setTimeout(syncBotsStatus, 2000);
+      
+      // Sincronizar estado de bots periódicamente cada 30 segundos para evitar desincronización
+      setInterval(syncBotsStatus, 30000);
+      
       // Manejo de pestañas
       const tabButtons = document.querySelectorAll('.tab-button');
       const tabContents = document.querySelectorAll('.tab-content');
@@ -530,8 +576,13 @@
             const commandName = commandNames[command] || command;
             
             sendCommand(botId, command)
-              .then(() => {
-                alert(`✅ Comando "${commandName}" enviado exitosamente al bot`);
+              .then((data) => {
+                // Si el servidor indica que el bot ya está en ese estado, mostrar mensaje apropiado
+                if (data.status_synced && data.message) {
+                  alert(`ℹ️ ${data.message}`);
+                } else {
+                  alert(`✅ Comando "${commandName}" enviado exitosamente al bot`);
+                }
                 // Rehabilitar el botón después de un momento
                 setTimeout(() => {
                   button.disabled = false;
