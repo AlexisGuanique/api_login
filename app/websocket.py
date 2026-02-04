@@ -367,4 +367,34 @@ def register_socketio_handlers(socketio):
             print(f"❌ Error en join_user_room: {e}")
             import traceback
             traceback.print_exc()
+    
+    @socketio.on('action_completed')
+    def handle_action_completed(data):
+        """Recibe confirmaciones de acciones completadas por el bot"""
+        try:
+            bot = Bot.query.filter_by(socket_id=request.sid).first()
+            if not bot:
+                print(f"⚠️  action_completed recibido de socket desconocido: {request.sid}")
+                return
+            
+            action = data.get('action', 'unknown')
+            success = data.get('success', False)
+            message = data.get('message', '')
+            
+            print(f"📨 Acción completada: {bot.name} -> {action} (success: {success})")
+            
+            # Reenviar la confirmación a la UI del usuario
+            socketio.emit('bot_action_completed', {
+                'bot_id': bot.id,
+                'bot_name': bot.name,
+                'action': action,
+                'success': success,
+                'message': message,
+                'user_id': bot.user_id
+            }, room=f'user_{bot.user_id}')
+            
+        except Exception as e:
+            print(f"❌ Error en action_completed: {e}")
+            import traceback
+            traceback.print_exc()
 

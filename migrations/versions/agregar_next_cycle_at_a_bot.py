@@ -24,9 +24,9 @@ def upgrade():
     
     if 'next_cycle_at' not in columns:
         op.add_column('bot', sa.Column('next_cycle_at', sa.DateTime(), nullable=True))
-        print("✅ Columna next_cycle_at agregada a la tabla bot")
+        print("[OK] Columna next_cycle_at agregada a la tabla bot")
     else:
-        print("ℹ️  Columna next_cycle_at ya existe, omitiendo migración")
+        print("[INFO] Columna next_cycle_at ya existe, omitiendo migracion")
 
 
 def downgrade():
@@ -37,7 +37,7 @@ def downgrade():
     
     if 'next_cycle_at' in columns:
         op.drop_column('bot', 'next_cycle_at')
-        print("✅ Columna next_cycle_at eliminada de la tabla bot")
+        print("[OK] Columna next_cycle_at eliminada de la tabla bot")
     else:
-        print("ℹ️  Columna next_cycle_at no existe, omitiendo rollback")
+        print("[INFO] Columna next_cycle_at no existe, omitiendo rollback")
 
