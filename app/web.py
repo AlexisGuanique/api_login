@@ -398,14 +398,30 @@ def accounts_hourly_stats():
         # Invertir para mostrar de más antiguo a más reciente
         hourly_data.reverse()
         
+        # Calcular promedio de las últimas 6 horas
+        last_6_hours_data = hourly_data[-6:] if len(hourly_data) >= 6 else hourly_data
+        last_6_hours_total = sum(item['count'] for item in last_6_hours_data)
+        last_6_hours_avg = last_6_hours_total / len(last_6_hours_data) if len(last_6_hours_data) > 0 else 0
+        
+        # Calcular total de cuentas creadas hoy (desde medianoche UTC)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_accounts = Account.query.filter(
+            Account.user_id == user.id,
+            Account.created_at >= today_start
+        ).count()
+        
         print(f"📊 Datos por hora generados: {len(hourly_data)} horas")
         print(f"📊 Total de cuentas en período: {len(accounts)}")
+        print(f"📊 Promedio últimas 6 horas: {last_6_hours_avg:.2f}")
+        print(f"📊 Total hoy: {today_accounts}")
         
         return jsonify({
             "message": "Estadísticas por hora obtenidas exitosamente",
             "user_id": user.id,
             "data": hourly_data,
-            "total_accounts": len(accounts)
+            "total_accounts": len(accounts),
+            "last_6_hours_avg": round(last_6_hours_avg, 2),
+            "today_total": today_accounts
         }), 200
         
     except Exception as e:

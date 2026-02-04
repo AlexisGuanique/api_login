@@ -36,7 +36,19 @@
   <section class="card" style="margin-top: 24px;">
     <div style="margin-bottom: 16px;">
       <h2 class="h2">Cuentas creadas por hora (últimas 24 horas)</h2>
-      <div class="muted" style="font-size: 13px;">Gráfico que muestra la cantidad de cuentas creadas en cada hora del día</div>
+      <div style="margin-top: 8px;">
+        <div class="muted" style="font-size: 13px; margin-bottom: 12px;">Gráfico que muestra la cantidad de cuentas creadas en cada hora del día</div>
+        <div id="chart-stats" style="display: flex; gap: 24px; flex-wrap: wrap; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 6px;">
+          <div style="font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 500;">📊 Promedio últimas 6h:</span>
+            <span id="last-6h-avg" style="color: var(--accent); font-weight: 600; font-size: 15px;">-</span>
+          </div>
+          <div style="font-size: 14px; color: var(--text); display: flex; align-items: center; gap: 8px;">
+            <span style="font-weight: 500;">📅 Total hoy:</span>
+            <span id="today-total" style="color: var(--accent); font-weight: 600; font-size: 15px;">-</span>
+          </div>
+        </div>
+      </div>
     </div>
     <div style="position: relative; height: 300px;">
       <canvas id="accountsHourlyChart"></canvas>
@@ -78,8 +90,24 @@
         const labels = hourlyData.map(item => item.hour);
         const counts = hourlyData.map(item => item.count);
         
+        // Actualizar estadísticas adicionales
+        const last6hAvg = data.last_6_hours_avg || 0;
+        const todayTotal = data.today_total || 0;
+        
+        const last6hAvgElement = document.getElementById('last-6h-avg');
+        const todayTotalElement = document.getElementById('today-total');
+        
+        if (last6hAvgElement) {
+          last6hAvgElement.textContent = last6hAvg.toFixed(2) + ' cuentas/hora';
+        }
+        if (todayTotalElement) {
+          todayTotalElement.textContent = todayTotal + ' cuentas';
+        }
+        
         console.log('📊 Labels:', labels);
         console.log('📊 Counts:', counts);
+        console.log('📊 Promedio últimas 6h:', last6hAvg);
+        console.log('📊 Total hoy:', todayTotal);
 
         // Configurar colores según el tema
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
