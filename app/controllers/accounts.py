@@ -1,7 +1,8 @@
 import os
 import json
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy import func
 from flask import Blueprint, request, jsonify
 from app.models.account import Account
 from app.models.user import User
@@ -349,4 +350,68 @@ def get_account_count(user_id):
         
     except Exception as e:
         return jsonify({"error": f"Error al obtener la cantidad de accounts: {str(e)}"}), 500
+
+
+#! ENDPOINT PARA OBTENER CUENTAS POR HORA (PARA GRÁFICO)
+@accounts_bp.route('/hourly-stats/<int:user_id>', methods=['GET'])
+@token_required
+def get_accounts_hourly_stats(user_id):
+    """Obtiene estadísticas de cuentas creadas por hora para las últimas 24 horas"""
+    try:
+        # Verificar que el usuario existe
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+        
+        # Calcular la fecha de inicio (últimas 24 horas)
+        now = datetime.utcnow()
+        start_time = now - timedelta(hours=24)
+        
+        # Obtener todas las cuentas del usuario creadas en las últimas 24 horas
+        accounts = Account.query.filter(
+            Account.user_id == user_id,
+            Account.created_at >= start_time
+        ).all()
+        
+        # Agrupar por hora
+        hourly_counts = {}
+        
+        # Inicializar todas las horas de las últimas 24 horas con 0
+        for i in range(24):
+            hour_time = now - timedelta(hours=i)
+            hour_key = hour_time.strftime('%Y-%m-%d %H:00')
+            hourly_counts[hour_key] = 0
+        
+        # Contar cuentas por hora
+        for account in accounts:
+            # Redondear a la hora más cercana
+            account_hour = account.created_at.replace(minute=0, second=0, microsecond=0)
+            hour_key = account_hour.strftime('%Y-%m-%d %H:00')
+            
+            if hour_key in hourly_counts:
+                hourly_counts[hour_key] += 1
+        
+        # Convertir a lista ordenada (más reciente primero)
+        hourly_data = []
+        for i in range(24):
+            hour_time = now - timedelta(hours=i)
+            hour_key = hour_time.strftime('%Y-%m-%d %H:00')
+            hourly_data.append({
+                'hour': hour_time.strftime('%H:00'),
+                'date': hour_time.strftime('%Y-%m-%d'),
+                'count': hourly_counts.get(hour_key, 0)
+            })
+        
+        # Invertir para mostrar de más antiguo a más reciente
+        hourly_data.reverse()
+        
+        return jsonify({
+            "message": "Estadísticas por hora obtenidas exitosamente",
+            "user_id": user_id,
+            "data": hourly_data,
+            "total_accounts": len(accounts)
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Error al obtener estadísticas por hora: {str(e)}"}), 500
 

@@ -15,10 +15,14 @@
       <div class="statcard__hint">Ver listado</div>
     </a>
 
-    <a class="statcard" href="{{ url_for('web.emails') }}">
-      <div class="statcard__label">Emails</div>
-      <div class="statcard__value">{{ emails_count }}</div>
-      <div class="statcard__hint">Ver listado</div>
+    <a class="statcard" href="{{ url_for('web.bots') }}">
+      <div class="statcard__label">Bots</div>
+      <div class="statcard__value">{{ bots_count }}</div>
+      <div class="statcard__hint">
+        <span style="display: block; margin-top: 4px; font-size: 11px; color: var(--muted);">
+          🎨 Creadores: {{ creadores_count }} | ✅ Logueadores: {{ logueadores_count }}
+        </span>
+      </div>
     </a>
 
     <a class="statcard" href="{{ url_for('web.user_profile') }}">
@@ -27,6 +31,157 @@
       <div class="statcard__hint">Ver / editar</div>
     </a>
   </div>
+
+  <!-- Gráfico de cuentas por hora -->
+  <section class="card" style="margin-top: 24px;">
+    <div style="margin-bottom: 16px;">
+      <h2 class="h2">Cuentas creadas por hora (últimas 24 horas)</h2>
+      <div class="muted" style="font-size: 13px;">Gráfico que muestra la cantidad de cuentas creadas en cada hora del día</div>
+    </div>
+    <div style="position: relative; height: 300px;">
+      <canvas id="accountsHourlyChart"></canvas>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    // Obtener datos del gráfico
+    console.log('📊 Cargando datos del gráfico...');
+    fetch('/web/accounts/hourly-stats')
+      .then(response => {
+        console.log('📊 Respuesta recibida:', response.status, response.statusText);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('📊 Datos recibidos:', data);
+        
+        if (data.error) {
+          console.error('❌ Error al obtener datos:', data.error);
+          document.getElementById('accountsHourlyChart').parentElement.innerHTML = 
+            '<div style="padding: 20px; text-align: center; color: var(--muted);">Error al cargar datos: ' + data.error + '</div>';
+          return;
+        }
+
+        const hourlyData = data.data || [];
+        console.log('📊 Datos procesados:', hourlyData.length, 'horas');
+        
+        if (hourlyData.length === 0) {
+          console.warn('⚠️ No hay datos para mostrar');
+          document.getElementById('accountsHourlyChart').parentElement.innerHTML = 
+            '<div style="padding: 20px; text-align: center; color: var(--muted);">No hay datos de cuentas creadas en las últimas 24 horas</div>';
+          return;
+        }
+        
+        const labels = hourlyData.map(item => item.hour);
+        const counts = hourlyData.map(item => item.count);
+        
+        console.log('📊 Labels:', labels);
+        console.log('📊 Counts:', counts);
+
+        // Configurar colores según el tema
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const gridColor = isDark ? 'rgba(163, 177, 209, 0.1)' : 'rgba(75, 88, 122, 0.1)';
+        const textColor = isDark ? '#e7ecff' : '#0b1020';
+        const lineColor = isDark ? '#6ea8fe' : '#2563eb';
+        const fillColor = isDark ? 'rgba(110, 168, 254, 0.2)' : 'rgba(37, 99, 235, 0.2)';
+
+        // Crear gráfico
+        const ctx = document.getElementById('accountsHourlyChart');
+        if (!ctx) {
+          console.error('❌ No se encontró el elemento canvas');
+          return;
+        }
+        
+        console.log('📊 Creando gráfico con', counts.length, 'puntos de datos');
+        const chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Cuentas creadas',
+              data: counts,
+              borderColor: lineColor,
+              backgroundColor: fillColor,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointBackgroundColor: lineColor,
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                labels: {
+                  color: textColor
+                }
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: isDark ? 'rgba(17, 26, 51, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                titleColor: textColor,
+                bodyColor: textColor,
+                borderColor: isDark ? 'rgba(110, 168, 254, 0.3)' : 'rgba(37, 99, 235, 0.3)',
+                borderWidth: 1
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: textColor,
+                  stepSize: 1
+                },
+                grid: {
+                  color: gridColor
+                }
+              },
+              x: {
+                ticks: {
+                  color: textColor,
+                  maxRotation: 45,
+                  minRotation: 45
+                },
+                grid: {
+                  color: gridColor
+                }
+              }
+            }
+          }
+        });
+        
+        console.log('✅ Gráfico creado exitosamente');
+      })
+      .catch(error => {
+        console.error('❌ Error al cargar datos del gráfico:', error);
+        const chartContainer = document.getElementById('accountsHourlyChart');
+        if (chartContainer && chartContainer.parentElement) {
+          chartContainer.parentElement.innerHTML = 
+            '<div style="padding: 20px; text-align: center; color: var(--muted);">Error al cargar el gráfico. Por favor, recarga la página.</div>';
+        }
+      });
+
+    // Actualizar colores del gráfico cuando cambia el tema
+    const themeObserver = new MutationObserver(() => {
+      // Recargar la página cuando cambie el tema para actualizar el gráfico
+      // O mejor: actualizar los colores dinámicamente
+      location.reload();
+    });
+
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+  </script>
 {% endblock %}
 
 
