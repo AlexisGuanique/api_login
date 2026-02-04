@@ -1,30 +1,28 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="pagehead">
-    <div>
-      <h1 class="h1">Bots</h1>
-      <div class="muted">{{ bots|length }} total</div>
-    </div>
-  </div>
-
   <section class="card" data-user-id="{{ user.id }}">
     {% set creadores = bots|selectattr('bot_type', 'equalto', 'creador')|list %}
     {% set logueadores = bots|selectattr('bot_type', 'equalto', 'logueador')|list %}
     
     <!-- Pestañas con botones de control global -->
-    <div class="tabs-container" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color, #e1e4e8); margin-bottom: 20px;">
-      <div class="tabs" style="display: flex;">
-        <button class="tab-button tab-button--active" data-tab="creadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid var(--primary-color, #0366d6); color: var(--text-color, #24292e); cursor: pointer; font-size: 14px; font-weight: 500;">
-          🎨 Creadores <span class="tab-count">({{ creadores|length }})</span>
-        </button>
-        <button class="tab-button" data-tab="logueadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-color-muted, #586069); cursor: pointer; font-size: 14px; font-weight: 500;">
-          ✅ Logueadores <span class="tab-count">({{ logueadores|length }})</span>
-        </button>
-      </div>
-      
-      <!-- Botones de control global -->
-      <div class="global-controls" style="display: flex; gap: 12px; align-items: center;">
+    <div class="tabs-container-wrapper" style="border-bottom: 2px solid var(--border-color, #e1e4e8); margin-bottom: 20px;">
+      <div class="tabs-container" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="tabs" style="display: flex;">
+          <button class="tab-button tab-button--active" data-tab="creadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid var(--accent); color: var(--text); cursor: pointer; font-size: 14px; font-weight: 500;">
+            🎨 Creadores <span class="tab-count">({{ creadores|length }})</span>
+          </button>
+          <button class="tab-button" data-tab="logueadores" style="padding: 12px 24px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 500;">
+            ✅ Logueadores <span class="tab-count">({{ logueadores|length }})</span>
+          </button>
+        </div>
+        
+        <!-- Botones de control global -->
+        <div class="global-controls" style="display: flex; gap: 12px; align-items: center;">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; user-select: none;">
+          <input type="checkbox" id="select-all-bots" style="cursor: pointer; width: 18px; height: 18px;">
+          <span class="select-all-text">Seleccionar todos</span>
+        </label>
         <button 
           id="start-all-bots" 
           class="global-control-btn" 
@@ -33,7 +31,7 @@
           onmouseout="this.style.transform='scale(1)'"
         >
           ▶️
-          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Iniciar todos los bots</span>
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Iniciar bots seleccionados</span>
         </button>
         <button 
           id="stop-all-bots" 
@@ -43,20 +41,112 @@
           onmouseout="this.style.transform='scale(1)'"
         >
           ⏹️
-          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Detener todos los bots</span>
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Detener bots seleccionados</span>
         </button>
+        <!-- Botones adicionales para logueadores (solo visibles en pestaña de logueadores) -->
+        <button 
+          id="close-ultra-all-bots" 
+          class="global-control-btn logueador-only-btn" 
+          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; padding: 0; position: relative; color: #f59e0b;"
+          onmouseover="this.style.transform='scale(1.15)'"
+          onmouseout="this.style.transform='scale(1)'"
+        >
+          ✕
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Cerrar Ultra en bots seleccionados</span>
+        </button>
+        <button 
+          id="delete-cache-all-bots" 
+          class="global-control-btn logueador-only-btn" 
+          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; padding: 0; position: relative; color: #ef4444;"
+          onmouseover="this.style.transform='scale(1.15)'"
+          onmouseout="this.style.transform='scale(1)'"
+        >
+          🗑️
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Eliminar Cache en bots seleccionados</span>
+        </button>
+        </div>
       </div>
+      
+      <style>
+        /* Ocultar texto "Seleccionar todos" en modo responsive */
+        @media (max-width: 768px) {
+          .select-all-text {
+            display: none;
+          }
+          
+          /* Cambiar layout del contenedor de pestañas a columna */
+          .tabs-container {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px;
+          }
+          
+          /* Mover botones debajo de las pestañas */
+          .global-controls {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color, #e1e4e8);
+          }
+        }
+      </style>
     </div>
 
     <!-- Contenido de pestaña Creadores -->
     <div class="tab-content" id="tab-creadores" data-bot-type="creador">
+      <!-- Configuración de hora programada para creadores -->
+      <div class="scheduled-time-container" style="margin-bottom: 20px; padding: 15px; background: var(--card); border-radius: 6px; border: 1px solid var(--line);">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; color: var(--text);">
+            <span>⏰ Iniciar automáticamente a las:</span>
+            <input 
+              type="time" 
+              id="scheduled-time-creators" 
+              step="60"
+              min="00:00"
+              max="23:59"
+              style="padding: 6px 10px; border: 1px solid var(--line); background: var(--input); color: var(--text); border-radius: 4px; font-size: 14px; cursor: pointer;"
+            >
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text);">
+            <input type="checkbox" id="enable-scheduled-start" style="cursor: pointer; width: 18px; height: 18px;">
+            <span style="font-size: 14px;">Activar programación</span>
+          </label>
+          <button 
+            id="clear-scheduled-time" 
+            class="button button--small" 
+            style="margin-left: auto;"
+          >
+            Limpiar
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px; flex-wrap: wrap;">
+          <span style="font-size: 13px; color: var(--muted); font-weight: 500;">Modo de ejecución:</span>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text);">
+            <input type="radio" name="scheduled-execution-mode" id="scheduled-mode-all" value="all" checked style="cursor: pointer; width: 16px; height: 16px;">
+            <span style="font-size: 13px;">Iniciar todos los bots</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text);">
+            <input type="radio" name="scheduled-execution-mode" id="scheduled-mode-selected" value="selected" style="cursor: pointer; width: 16px; height: 16px;">
+            <span style="font-size: 13px;">Solo bots seleccionados</span>
+          </label>
+        </div>
+        <div id="scheduled-time-status" style="margin-top: 8px; font-size: 12px; color: var(--muted); font-style: italic;">
+          Programación desactivada
+        </div>
+      </div>
+      
       {% if creadores|length > 0 %}
         <div class="bots-list">
           {% for bot in creadores %}
             <div class="bot-card" data-bot-id="{{ bot.id }}" data-bot-type="{{ bot.bot_type }}">
-              <div class="bot-card__header">
-                <div class="bot-card__name">{{ bot.name }}</div>
-                <div class="bot-card__type">{{ bot.bot_type }}</div>
+              <div class="bot-card__header" style="display: flex; align-items: center; gap: 12px;">
+                <input type="checkbox" class="bot-checkbox" data-bot-id="{{ bot.id }}" style="cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;">
+                <div style="flex: 1;">
+                  <div class="bot-card__name">{{ bot.name }}</div>
+                  <div class="bot-card__type">{{ bot.bot_type }}</div>
+                </div>
               </div>
               <div class="bot-card__status">
                 <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
@@ -89,9 +179,12 @@
         <div class="bots-list">
           {% for bot in logueadores %}
             <div class="bot-card" data-bot-id="{{ bot.id }}" data-bot-type="{{ bot.bot_type }}">
-              <div class="bot-card__header">
-                <div class="bot-card__name">{{ bot.name }}</div>
-                <div class="bot-card__type">{{ bot.bot_type }}</div>
+              <div class="bot-card__header" style="display: flex; align-items: center; gap: 12px;">
+                <input type="checkbox" class="bot-checkbox" data-bot-id="{{ bot.id }}" style="cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;">
+                <div style="flex: 1;">
+                  <div class="bot-card__name">{{ bot.name }}</div>
+                  <div class="bot-card__type">{{ bot.bot_type }}</div>
+                </div>
               </div>
               <div class="bot-card__status">
                 <span class="status-badge status-badge--{{ bot.status }}">{{ bot.status }}</span>
@@ -109,9 +202,11 @@
                   {% if bot.status == 'running' %}
                     <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
                   {% else %}
-                    <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="start">Iniciar</button>
+                    <button class="button button--small button--primary" data-bot-id="{{ bot.id }}" data-command="start">Iniciar</button>
                     <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
                   {% endif %}
+                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
+                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 {% else %}
                   <span class="muted small">Bot desconectado</span>
                 {% endif %}
@@ -182,7 +277,56 @@
         }
       }
       
+      // Asegurar que el checkbox exista en el header
+      const header = botCard.querySelector('.bot-card__header');
+      if (header) {
+        let checkbox = header.querySelector('.bot-checkbox');
+        if (!checkbox) {
+          // Crear checkbox si no existe
+          checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'bot-checkbox';
+          checkbox.setAttribute('data-bot-id', botId);
+          checkbox.style.cssText = 'cursor: pointer; width: 18px; height: 18px; flex-shrink: 0;';
+          
+          // Insertar al inicio del header
+          if (header.firstChild) {
+            header.insertBefore(checkbox, header.firstChild);
+          } else {
+            
+            header.appendChild(checkbox);
+          }
+          
+          // Asegurar que el header tenga el estilo flex
+          if (!header.style.display) {
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.gap = '12px';
+          }
+          
+          // Envolver el contenido existente en un div si no existe
+          const contentDiv = header.querySelector('div:not(.bot-checkbox)');
+          if (!contentDiv || contentDiv.classList.contains('bot-checkbox')) {
+            const wrapper = document.createElement('div');
+            wrapper.style.flex = '1';
+            while (header.childNodes.length > 1 || (header.childNodes.length === 1 && header.firstChild !== checkbox)) {
+              if (header.firstChild !== checkbox) {
+                wrapper.appendChild(header.firstChild);
+              } else {
+                break;
+              }
+            }
+            if (wrapper.childNodes.length > 0) {
+              header.appendChild(wrapper);
+            }
+          }
+        }
+      }
+      
       // Actualizar botones según el nuevo estado
+      
+
+      
       const actionsContainer = botCard.querySelector('.bot-card__actions');
       if (actionsContainer) {
         const botType = botCard.getAttribute('data-bot-type');
@@ -207,12 +351,16 @@
             if (newStatus === 'running') {
               newButtonsHTML = `
                 <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
               `;
             } else {
               newButtonsHTML = `
-                <button class="button button--small" data-bot-id="${botId}" data-command="start">Iniciar</button>
+                <button class="button button--small button--primary" data-bot-id="${botId}" data-command="start">Iniciar</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
               `;
             }
@@ -238,6 +386,23 @@
     // Escuchar cambios de estado de bots desde el servidor
     socket.on('bot_status_changed', (data) => {
       updateBotStatusUI(data.bot_id, data.status, data.next_cycle_at);
+    });
+
+    // Escuchar confirmaciones de acciones completadas por los bots
+    socket.on('bot_action_completed', (data) => {
+      const actionNames = {
+        'close_ultra': 'Cerrar Ultra',
+        'delete_cache': 'Eliminar Cache',
+        'start': 'Iniciar',
+        'stop': 'Detener'
+      };
+      const actionName = actionNames[data.action] || data.action;
+      
+      if (data.success) {
+        alert(`✅ ${actionName} completado exitosamente\nBot: ${data.bot_name}\n${data.message || ''}`);
+      } else {
+        alert(`❌ Error al ejecutar ${actionName}\nBot: ${data.bot_name}\n${data.message || 'Error desconocido'}`);
+      }
     });
 
     function sendCommand(botId, command) {
@@ -280,42 +445,86 @@
       });
     }
 
-    // Función para enviar comando a todos los bots de un tipo
-    async function sendCommandToAllBots(botType, command) {
+    // Función para obtener los bots seleccionados del tipo activo
+    function getSelectedBots(botType) {
+      const activeTab = document.querySelector('.tab-button--active');
+      if (!activeTab) return { connected: [], offline: [] };
+      
+      const activeTabContent = document.getElementById(`tab-${activeTab.getAttribute('data-tab')}`);
+      if (!activeTabContent) return { connected: [], offline: [] };
+      
+      // Obtener todos los checkboxes marcados en la pestaña activa
+      const checkboxes = activeTabContent.querySelectorAll('.bot-checkbox:checked');
+      const connectedBots = [];
+      const offlineBots = [];
+      
+      checkboxes.forEach(checkbox => {
+        const botId = parseInt(checkbox.getAttribute('data-bot-id'));
+        const botCard = document.querySelector(`[data-bot-id="${botId}"]`);
+        if (botCard) {
+          const statusBadge = botCard.querySelector('.status-badge');
+          const status = statusBadge ? statusBadge.textContent.trim().toLowerCase() : '';
+          // Separar bots conectados de los offline
+          if (status === 'online' || status === 'stopped' || status === 'running') {
+            connectedBots.push(botCard);
+          } else {
+            offlineBots.push(botCard);
+          }
+        }
+      });
+      
+      return { connected: connectedBots, offline: offlineBots };
+    }
+
+    // Función para enviar comando a los bots seleccionados
+    async function sendCommandToSelectedBots(botType, command) {
       const commandNames = {
         'start': 'Iniciar',
         'stop': 'Detener',
         'execute_creator': 'Ejecutar Creator',
-        'restart': 'Reiniciar'
+        'restart': 'Reiniciar',
+        'close_ultra': 'Cerrar Ultra',
+        'delete_cache': 'Eliminar Cache'
       };
       const commandName = commandNames[command] || command;
       
-      // Obtener todos los bots del tipo especificado que estén conectados
-      const botCards = document.querySelectorAll(`[data-bot-type="${botType}"]`);
-      const connectedBots = Array.from(botCards).filter(card => {
-        const statusBadge = card.querySelector('.status-badge');
-        const status = statusBadge ? statusBadge.textContent.trim() : '';
-        // Solo incluir bots que estén online, stopped o running
-        return status === 'online' || status === 'stopped' || status === 'running';
-      });
+      // Obtener los bots seleccionados (separados por estado)
+      const { connected, offline } = getSelectedBots(botType);
+      const totalSelected = connected.length + offline.length;
       
-      if (connectedBots.length === 0) {
-        alert(`⚠️ No hay bots ${botType} conectados para ejecutar el comando.`);
+      // Si no hay bots seleccionados en absoluto
+      if (totalSelected === 0) {
+        alert(`⚠️ No hay bots seleccionados para ejecutar el comando. Por favor, selecciona al menos un bot.`);
         return;
       }
       
-      // Confirmar acción
+      // Si hay bots seleccionados pero todos están offline
+      if (connected.length === 0 && offline.length > 0) {
+        alert(`⚠️ Los bots seleccionados están desconectados (offline). Por favor, conecta los bots antes de ejecutar el comando.`);
+        return;
+      }
+      
+      // Si hay bots offline seleccionados, advertir al usuario
+      if (offline.length > 0) {
+        const botTypeName = botType === 'creador' ? 'creadores' : 'logueadores';
+        const message = `⚠️ ${offline.length} ${offline.length === 1 ? 'bot está' : 'bots están'} desconectado${offline.length === 1 ? '' : 's'} (offline) y no se ${offline.length === 1 ? 'puede' : 'pueden'} ejecutar el comando.\n\n¿Deseas continuar con los ${connected.length} ${connected.length === 1 ? 'bot conectado' : 'bots conectados'}?`;
+        if (!confirm(message)) {
+          return;
+        }
+      }
+      
+      // Confirmar acción solo con los bots conectados
       const botTypeName = botType === 'creador' ? 'creadores' : 'logueadores';
-      if (!confirm(`¿Estás seguro de ${commandName.toLowerCase()} todos los ${botTypeName} conectados? (${connectedBots.length} bots)`)) {
+      if (connected.length > 0 && !confirm(`¿Estás seguro de ${commandName.toLowerCase()} los ${connected.length} ${botTypeName} seleccionados y conectados?`)) {
         return;
       }
       
-      // Enviar comandos a todos los bots
+      // Enviar comandos solo a los bots conectados
       const promises = [];
       const errors = [];
       const successes = [];
       
-      for (const card of connectedBots) {
+      for (const card of connected) {
         const botId = parseInt(card.getAttribute('data-bot-id'));
         if (botId) {
           promises.push(
@@ -330,10 +539,18 @@
       await Promise.allSettled(promises);
       
       // Mostrar resultado
-      if (errors.length === 0) {
-        alert(`✅ Comando "${commandName}" enviado exitosamente a ${successes.length} ${botTypeName}.`);
-      } else {
-        alert(`⚠️ Comando enviado a ${successes.length} ${botTypeName}, pero ${errors.length} fallaron.\n\nErrores:\n${errors.map(e => `Bot ${e.botId}: ${e.error}`).join('\n')}`);
+      if (errors.length === 0 && successes.length > 0) {
+        let message = `✅ Comando "${commandName}" enviado exitosamente a ${successes.length} ${botTypeName}.`;
+        if (offline.length > 0) {
+          message += `\n\n⚠️ ${offline.length} ${offline.length === 1 ? 'bot estaba' : 'bots estaban'} desconectado${offline.length === 1 ? '' : 's'} y no ${offline.length === 1 ? 'se ejecutó' : 'se ejecutaron'}.`;
+        }
+        alert(message);
+      } else if (errors.length > 0) {
+        let message = `⚠️ Comando enviado a ${successes.length} ${botTypeName}, pero ${errors.length} fallaron.\n\nErrores:\n${errors.map(e => `Bot ${e.botId}: ${e.error}`).join('\n')}`;
+        if (offline.length > 0) {
+          message += `\n\n⚠️ ${offline.length} ${offline.length === 1 ? 'bot estaba' : 'bots estaban'} desconectado${offline.length === 1 ? '' : 's'} y no ${offline.length === 1 ? 'se ejecutó' : 'se ejecutaron'}.`;
+        }
+        alert(message);
       }
     }
 
@@ -530,13 +747,13 @@
           tabButtons.forEach(btn => {
             btn.classList.remove('tab-button--active');
             btn.style.borderBottomColor = 'transparent';
-            btn.style.color = 'var(--text-color-muted, #586069)';
+            btn.style.color = 'var(--muted)';
           });
           
           // Agregar clase activa al botón clickeado
           this.classList.add('tab-button--active');
-          this.style.borderBottomColor = 'var(--primary-color, #0366d6)';
-          this.style.color = 'var(--text-color, #24292e)';
+          this.style.borderBottomColor = 'var(--accent)';
+          this.style.color = 'var(--text)';
           
           // Ocultar todos los contenidos
           tabContents.forEach(content => {
@@ -551,6 +768,9 @@
           
           // Actualizar tooltips de los botones globales
           updateGlobalButtonsTooltips();
+          
+          // Actualizar el estado del checkbox "Seleccionar todos"
+          updateSelectAllCheckbox();
         });
       });
       
@@ -632,20 +852,100 @@
         const botTypeName = activeType === 'creador' ? 'creadores' : 'logueadores';
         const startBtn = document.getElementById('start-all-bots');
         const stopBtn = document.getElementById('stop-all-bots');
+        const closeUltraBtn = document.getElementById('close-ultra-all-bots');
+        const deleteCacheBtn = document.getElementById('delete-cache-all-bots');
         
         if (startBtn) {
           const tooltip = startBtn.querySelector('.tooltip-text');
           if (tooltip) {
-            tooltip.textContent = `Iniciar todos los ${botTypeName}`;
+            tooltip.textContent = `Iniciar bots seleccionados`;
           }
         }
         if (stopBtn) {
           const tooltip = stopBtn.querySelector('.tooltip-text');
           if (tooltip) {
-            tooltip.textContent = `Detener todos los ${botTypeName}`;
+            tooltip.textContent = `Detener bots seleccionados`;
+          }
+        }
+        
+        // Mostrar/ocultar botones de logueadores según la pestaña activa
+        if (closeUltraBtn && deleteCacheBtn) {
+          if (activeType === 'logueador') {
+            closeUltraBtn.style.display = 'flex';
+            deleteCacheBtn.style.display = 'flex';
+          } else {
+            closeUltraBtn.style.display = 'none';
+            deleteCacheBtn.style.display = 'none';
           }
         }
       }
+
+      // Función para seleccionar/deseleccionar todos los bots de la pestaña activa
+      function toggleSelectAll(checked) {
+        const activeTab = document.querySelector('.tab-button--active');
+        if (!activeTab) return;
+        
+        const activeTabContent = document.getElementById(`tab-${activeTab.getAttribute('data-tab')}`);
+        if (!activeTabContent) return;
+        
+        const checkboxes = activeTabContent.querySelectorAll('.bot-checkbox');
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = checked;
+        });
+      }
+
+      // Event listener para el checkbox "Seleccionar todos"
+      const selectAllCheckbox = document.getElementById('select-all-bots');
+      if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+          // Usar el estado actual del checkbox para seleccionar/deseleccionar todos
+          toggleSelectAll(this.checked);
+          // Actualizar el estado después de cambiar todos los checkboxes
+          updateSelectAllCheckbox();
+        });
+      }
+
+      // Event listeners para checkboxes individuales - actualizar "Seleccionar todos" solo reflejando el estado
+      function updateSelectAllCheckbox() {
+        const activeTab = document.querySelector('.tab-button--active');
+        if (!activeTab) return;
+        
+        const activeTabContent = document.getElementById(`tab-${activeTab.getAttribute('data-tab')}`);
+        if (!activeTabContent) return;
+        
+        const checkboxes = activeTabContent.querySelectorAll('.bot-checkbox');
+        const checkedBoxes = activeTabContent.querySelectorAll('.bot-checkbox:checked');
+        
+        const selectAllCheckbox = document.getElementById('select-all-bots');
+        if (selectAllCheckbox) {
+          if (checkboxes.length === 0) {
+            // No hay checkboxes, desmarcar "Seleccionar todos"
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+          } else if (checkedBoxes.length === checkboxes.length && checkedBoxes.length > 0) {
+            // Todos los checkboxes están marcados, marcar "Seleccionar todos"
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+          } else if (checkedBoxes.length > 0) {
+            // Algunos checkboxes están marcados, estado indeterminado (NO marcar el checkbox)
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+          } else {
+            // Ningún checkbox está marcado, desmarcar "Seleccionar todos"
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+          }
+        }
+      }
+
+      // Agregar event listeners a los checkboxes individuales
+      document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('bot-checkbox')) {
+          // Actualizar el estado de "Seleccionar todos" basado en los checkboxes individuales
+          // Esto solo REFLEJA el estado, no lo cambia activamente
+          updateSelectAllCheckbox();
+        }
+      });
       
       // Agregar event listeners para mostrar/ocultar tooltips
       function setupTooltips() {
@@ -674,7 +974,7 @@
         this.style.opacity = '0.6';
         
         try {
-          await sendCommandToAllBots(activeType, command);
+          await sendCommandToSelectedBots(activeType, command);
         } catch (err) {
           console.error('Error:', err);
         } finally {
@@ -690,7 +990,49 @@
         this.style.opacity = '0.6';
         
         try {
-          await sendCommandToAllBots(activeType, 'stop');
+          await sendCommandToSelectedBots(activeType, 'stop');
+        } catch (err) {
+          console.error('Error:', err);
+        } finally {
+          this.disabled = false;
+          this.style.opacity = '1';
+        }
+      });
+
+      document.getElementById('close-ultra-all-bots')?.addEventListener('click', async function() {
+        const activeType = getActiveTabType();
+        
+        // Solo permitir en logueadores
+        if (activeType !== 'logueador') {
+          return;
+        }
+        
+        this.disabled = true;
+        this.style.opacity = '0.6';
+        
+        try {
+          await sendCommandToSelectedBots(activeType, 'close_ultra');
+        } catch (err) {
+          console.error('Error:', err);
+        } finally {
+          this.disabled = false;
+          this.style.opacity = '1';
+        }
+      });
+
+      document.getElementById('delete-cache-all-bots')?.addEventListener('click', async function() {
+        const activeType = getActiveTabType();
+        
+        // Solo permitir en logueadores
+        if (activeType !== 'logueador') {
+          return;
+        }
+        
+        this.disabled = true;
+        this.style.opacity = '0.6';
+        
+        try {
+          await sendCommandToSelectedBots(activeType, 'delete_cache');
         } catch (err) {
           console.error('Error:', err);
         } finally {
@@ -702,6 +1044,210 @@
       // Inicializar tooltips al cargar
       updateGlobalButtonsTooltips();
       setupTooltips();
+      
+      // Asegurar que los botones de logueadores se inicialicen correctamente
+      setTimeout(() => {
+        updateGlobalButtonsTooltips();
+      }, 100);
+      
+      // ========== CONFIGURACIÓN DE HORA PROGRAMADA PARA CREADORES ==========
+      
+      // Clave para localStorage
+      const SCHEDULED_TIME_KEY = 'creators_scheduled_time';
+      const SCHEDULED_ENABLED_KEY = 'creators_scheduled_enabled';
+      const SCHEDULED_MODE_KEY = 'creators_scheduled_mode'; // 'all' o 'selected'
+      
+      // Elementos del DOM
+      const scheduledTimeInput = document.getElementById('scheduled-time-creators');
+      const enableScheduledCheckbox = document.getElementById('enable-scheduled-start');
+      const clearScheduledBtn = document.getElementById('clear-scheduled-time');
+      const scheduledTimeStatus = document.getElementById('scheduled-time-status');
+      const scheduledModeAll = document.getElementById('scheduled-mode-all');
+      const scheduledModeSelected = document.getElementById('scheduled-mode-selected');
+      
+      // Cargar configuración guardada
+      function loadScheduledConfig() {
+        const savedTime = localStorage.getItem(SCHEDULED_TIME_KEY);
+        const savedEnabled = localStorage.getItem(SCHEDULED_ENABLED_KEY) === 'true';
+        const savedMode = localStorage.getItem(SCHEDULED_MODE_KEY) || 'all';
+        
+        if (savedTime) {
+          scheduledTimeInput.value = savedTime;
+        }
+        
+        enableScheduledCheckbox.checked = savedEnabled;
+        
+        // Cargar modo de ejecución
+        if (savedMode === 'selected') {
+          scheduledModeSelected.checked = true;
+        } else {
+          scheduledModeAll.checked = true;
+        }
+        
+        updateScheduledStatus();
+      }
+      
+      // Guardar configuración
+      function saveScheduledConfig() {
+        if (scheduledTimeInput.value) {
+          localStorage.setItem(SCHEDULED_TIME_KEY, scheduledTimeInput.value);
+        } else {
+          localStorage.removeItem(SCHEDULED_TIME_KEY);
+        }
+        localStorage.setItem(SCHEDULED_ENABLED_KEY, enableScheduledCheckbox.checked.toString());
+        
+        // Guardar modo de ejecución
+        const selectedMode = scheduledModeSelected.checked ? 'selected' : 'all';
+        localStorage.setItem(SCHEDULED_MODE_KEY, selectedMode);
+        
+        updateScheduledStatus();
+      }
+      
+      // Actualizar estado visual
+      function updateScheduledStatus() {
+        const isEnabled = enableScheduledCheckbox.checked;
+        const time = scheduledTimeInput.value;
+        const mode = scheduledModeSelected.checked ? 'selected' : 'all';
+        const modeText = mode === 'all' ? 'todos los bots' : 'solo los bots seleccionados';
+        
+        if (isEnabled && time) {
+          const [hours, minutes] = time.split(':');
+          scheduledTimeStatus.textContent = `✅ Programación activa: Se iniciarán ${modeText} creadores automáticamente a las ${hours}:${minutes}`;
+          scheduledTimeStatus.style.color = 'var(--accent)';
+          scheduledTimeStatus.style.fontStyle = 'normal';
+        } else if (time && !isEnabled) {
+          scheduledTimeStatus.textContent = `⏸️ Programación configurada pero desactivada (${time})`;
+          scheduledTimeStatus.style.color = 'var(--muted)';
+          scheduledTimeStatus.style.fontStyle = 'italic';
+        } else {
+          scheduledTimeStatus.textContent = 'Programación desactivada';
+          scheduledTimeStatus.style.color = 'var(--muted)';
+          scheduledTimeStatus.style.fontStyle = 'italic';
+        }
+      }
+      
+      // Limpiar configuración
+      function clearScheduledConfig() {
+        scheduledTimeInput.value = '';
+        enableScheduledCheckbox.checked = false;
+        scheduledModeAll.checked = true; // Resetear a modo "todos"
+        localStorage.removeItem(SCHEDULED_TIME_KEY);
+        localStorage.removeItem(SCHEDULED_ENABLED_KEY);
+        localStorage.removeItem(SCHEDULED_MODE_KEY);
+        updateScheduledStatus();
+      }
+      
+      // Verificar si es la hora programada y ejecutar acción
+      function checkScheduledTime() {
+        const isEnabled = enableScheduledCheckbox.checked;
+        const scheduledTime = scheduledTimeInput.value;
+        const mode = scheduledModeSelected.checked ? 'selected' : 'all';
+        
+        if (!isEnabled || !scheduledTime) {
+          return;
+        }
+        
+        const now = new Date();
+        const [scheduledHours, scheduledMinutes] = scheduledTime.split(':').map(Number);
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+        
+        // Verificar si es la hora exacta (solo una vez por minuto)
+        if (currentHours === scheduledHours && currentMinutes === scheduledMinutes) {
+          // Verificar que no se haya ejecutado ya en este minuto
+          const lastExecutionKey = 'creators_last_scheduled_execution';
+          const lastExecution = localStorage.getItem(lastExecutionKey);
+          const currentMinute = `${currentHours}:${currentMinutes}`;
+          
+          if (lastExecution !== currentMinute) {
+            // Marcar que se ejecutó en este minuto
+            localStorage.setItem(lastExecutionKey, currentMinute);
+            
+            // Ejecutar la acción según el modo seleccionado
+            const modeText = mode === 'all' ? 'todos los bots creadores' : 'los bots creadores seleccionados';
+            console.log(`⏰ Hora programada alcanzada (${scheduledTime}). Iniciando ${modeText}...`);
+            
+            // Asegurar que estamos en la pestaña de creadores y ejecutar
+            const creadoresTab = document.querySelector('[data-tab="creadores"]');
+            if (creadoresTab) {
+              // Cambiar a la pestaña de creadores si no está activa
+              const activeTab = document.querySelector('.tab-button--active');
+              if (!activeTab || activeTab.getAttribute('data-tab') !== 'creadores') {
+                creadoresTab.click();
+              }
+              
+              // Esperar un momento para que la pestaña se active, luego ejecutar
+              setTimeout(() => {
+                if (mode === 'all') {
+                  // Modo "todos": seleccionar todos los bots primero
+                  const selectAllCheckbox = document.getElementById('select-all-bots');
+                  if (selectAllCheckbox) {
+                    toggleSelectAll(true);
+                  }
+                  
+                  // Esperar un momento más para que los checkboxes se actualicen
+                  setTimeout(() => {
+                    // Ejecutar el comando de iniciar todos
+                    const startBtn = document.getElementById('start-all-bots');
+                    if (startBtn && !startBtn.disabled) {
+                      startBtn.click();
+                    }
+                  }, 100);
+                } else {
+                  // Modo "solo seleccionados": usar los bots que ya están seleccionados
+                  const activeTabContent = document.getElementById('tab-creadores');
+                  if (activeTabContent) {
+                    const selectedCheckboxes = activeTabContent.querySelectorAll('.bot-checkbox:checked');
+                    
+                    if (selectedCheckboxes.length === 0) {
+                      console.log('⚠️ No hay bots seleccionados. No se ejecutará ninguna acción.');
+                      return;
+                    }
+                    
+                    console.log(`✅ ${selectedCheckboxes.length} bot(s) seleccionado(s). Ejecutando comando...`);
+                    
+                    // Ejecutar el comando de iniciar solo los seleccionados
+                    const startBtn = document.getElementById('start-all-bots');
+                    if (startBtn && !startBtn.disabled) {
+                      startBtn.click();
+                    }
+                  }
+                }
+              }, 200);
+            }
+          }
+        }
+      }
+      
+      // Event listeners
+      if (scheduledTimeInput) {
+        scheduledTimeInput.addEventListener('change', saveScheduledConfig);
+      }
+      
+      if (enableScheduledCheckbox) {
+        enableScheduledCheckbox.addEventListener('change', saveScheduledConfig);
+      }
+      
+      if (scheduledModeAll) {
+        scheduledModeAll.addEventListener('change', saveScheduledConfig);
+      }
+      
+      if (scheduledModeSelected) {
+        scheduledModeSelected.addEventListener('change', saveScheduledConfig);
+      }
+      
+      if (clearScheduledBtn) {
+        clearScheduledBtn.addEventListener('click', clearScheduledConfig);
+      }
+      
+      // Cargar configuración al iniciar
+      loadScheduledConfig();
+      
+      // Verificar la hora programada cada minuto
+      setInterval(checkScheduledTime, 60000); // 60000ms = 1 minuto
+      
+      // También verificar inmediatamente al cargar (por si acaso)
+      checkScheduledTime();
     });
   </script>
 {% endblock %}

@@ -135,7 +135,11 @@ def dashboard():
 
     user_id = user.id
     accounts_count = Account.query.filter_by(user_id=user_id).count()
-    emails_count = Email.query.filter_by(user_id=user_id).count()
+    bots_count = Bot.query.filter_by(user_id=user_id).count()
+    
+    # Contar bots por tipo
+    logueadores_count = Bot.query.filter_by(user_id=user_id, bot_type='logueador').count()
+    creadores_count = Bot.query.filter_by(user_id=user_id, bot_type='creador').count()
     proxies_count = Proxy.query.filter_by(user_id=user_id).count()
 
     # Try to get stats from first active Dataimpulse proxy (ordered by created_at, limit 1)
@@ -164,7 +168,9 @@ def dashboard():
         "dashboard.html",
         user=user,
         accounts_count=accounts_count,
-        emails_count=emails_count,
+        bots_count=bots_count,
+        logueadores_count=logueadores_count,
+        creadores_count=creadores_count,
         proxies_count=proxies_count,
         proxy_stats=proxy_stats,
     )
@@ -358,6 +364,97 @@ def bots():
         user=user,
         bots=[b.to_dict() for b in bots_list],
     )
+
+
+@web_bp.get("/accounts/hourly-stats")
+def accounts_hourly_stats():
+    """Endpoint para obtener estadísticas de cuentas por hora (accesible desde sesión web)"""
+    guard = _require_login()
+    if guard:
+        return guard
+    
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+    
+    try:
+        from datetime import timedelta
+        from flask import jsonify
+        
+        # Calcular la fecha de inicio (últimas 24 horas)
+        now = datetime.utcnow()
+        start_time = now - timedelta(hours=24)
+        
+        # Obtener todas las cuentas del usuario creadas en las últimas 24 horas
+        accounts = Account.query.filter(
+            Account.user_id == user.id,
+            Account.created_at >= start_time
+        ).all()
+        
+        print(f"📊 Cuentas encontradas en últimas 24h: {len(accounts)}")
+        
+        # Agrupar por hora
+        hourly_counts = {}
+        
+        # Inicializar todas las horas de las últimas 24 horas con 0
+        for i in range(24):
+            hour_time = now - timedelta(hours=i)
+            hour_key = hour_time.strftime('%Y-%m-%d %H:00')
+            hourly_counts[hour_key] = 0
+        
+        # Contar cuentas por hora
+        for account in accounts:
+            # Redondear a la hora más cercana
+            account_hour = account.created_at.replace(minute=0, second=0, microsecond=0)
+            hour_key = account_hour.strftime('%Y-%m-%d %H:00')
+            
+            if hour_key in hourly_counts:
+                hourly_counts[hour_key] += 1
+        
+        # Convertir a lista ordenada (más reciente primero)
+        hourly_data = []
+        for i in range(24):
+            hour_time = now - timedelta(hours=i)
+            hour_key = hour_time.strftime('%Y-%m-%d %H:00')
+            hourly_data.append({
+                'hour': hour_time.strftime('%H:00'),
+                'date': hour_time.strftime('%Y-%m-%d'),
+                'count': hourly_counts.get(hour_key, 0)
+            })
+        
+        # Invertir para mostrar de más antiguo a más reciente
+        hourly_data.reverse()
+        
+        # Calcular promedio de las últimas 6 horas
+        last_6_hours_data = hourly_data[-6:] if len(hourly_data) >= 6 else hourly_data
+        last_6_hours_total = sum(item['count'] for item in last_6_hours_data)
+        last_6_hours_avg = last_6_hours_total / len(last_6_hours_data) if len(last_6_hours_data) > 0 else 0
+        
+        # Calcular total de cuentas creadas hoy (desde medianoche UTC)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_accounts = Account.query.filter(
+            Account.user_id == user.id,
+            Account.created_at >= today_start
+        ).count()
+        
+        print(f"📊 Datos por hora generados: {len(hourly_data)} horas")
+        print(f"📊 Total de cuentas en período: {len(accounts)}")
+        print(f"📊 Promedio últimas 6 horas: {last_6_hours_avg:.2f}")
+        print(f"📊 Total hoy: {today_accounts}")
+        
+        return jsonify({
+            "message": "Estadísticas por hora obtenidas exitosamente",
+            "user_id": user.id,
+            "data": hourly_data,
+            "total_accounts": len(accounts),
+            "last_6_hours_avg": round(last_6_hours_avg, 2),
+            "today_total": today_accounts
+        }), 200
+        
+    except Exception as e:
+        from flask import jsonify
+        return jsonify({"error": f"Error al obtener estadísticas por hora: {str(e)}"}), 500
 
 
 @web_bp.get("/proxies")

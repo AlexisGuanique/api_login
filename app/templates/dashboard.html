@@ -15,10 +15,14 @@
     <div class="statcard__hint">Ver listado</div>
   </a>
 
-  <a class="statcard" href="{{ url_for('web.emails') }}">
-    <div class="statcard__label">Emails</div>
-    <div class="statcard__value">{{ emails_count }}</div>
-    <div class="statcard__hint">Ver listado</div>
+  <a class="statcard" href="{{ url_for('web.bots') }}">
+    <div class="statcard__label">Bots</div>
+    <div class="statcard__value">{{ bots_count }}</div>
+    <div class="statcard__hint">
+      <span style="display: block; margin-top: 4px; font-size: 11px; color: var(--muted);">
+        🎨 Creadores: {{ creadores_count }} | ✅ Logueadores: {{ logueadores_count }}
+      </span>
+    </div>
   </a>
 
   <a class="statcard" href="{{ url_for('web.user_profile') }}">
