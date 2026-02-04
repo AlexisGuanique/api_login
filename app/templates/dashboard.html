@@ -1,32 +1,59 @@
 {% extends "base.html" %}
 
 {% block content %}
-  <div class="pagehead">
-    <div>
-      <h1 class="h1">Dashboard</h1>
-      <div class="muted">Selecciona una sección en el menú lateral.</div>
-    </div>
+<div class="pagehead">
+  <div>
+    <h1 class="h1">Dashboard</h1>
+    <div class="muted">Selecciona una sección en el menú lateral.</div>
   </div>
+</div>
 
-  <div class="cards">
-    <a class="statcard" href="{{ url_for('web.accounts') }}">
-      <div class="statcard__label">Cuentas</div>
-      <div class="statcard__value">{{ accounts_count }}</div>
-      <div class="statcard__hint">Ver listado</div>
-    </a>
+<div class="cards">
+  <a class="statcard" href="{{ url_for('web.accounts') }}">
+    <div class="statcard__label">Cuentas</div>
+    <div class="statcard__value">{{ accounts_count }}</div>
+    <div class="statcard__hint">Ver listado</div>
+  </a>
 
-    <a class="statcard" href="{{ url_for('web.emails') }}">
-      <div class="statcard__label">Emails</div>
-      <div class="statcard__value">{{ emails_count }}</div>
-      <div class="statcard__hint">Ver listado</div>
-    </a>
+  <a class="statcard" href="{{ url_for('web.emails') }}">
+    <div class="statcard__label">Emails</div>
+    <div class="statcard__value">{{ emails_count }}</div>
+    <div class="statcard__hint">Ver listado</div>
+  </a>
 
-    <a class="statcard" href="{{ url_for('web.user_profile') }}">
-      <div class="statcard__label">User</div>
-      <div class="statcard__value">Perfil</div>
-      <div class="statcard__hint">Ver / editar</div>
-    </a>
+  <a class="statcard" href="{{ url_for('web.user_profile') }}">
+    <div class="statcard__label">User</div>
+    <div class="statcard__value">Perfil</div>
+    <div class="statcard__hint">Ver / editar</div>
+  </a>
+
+  <a class="statcard" href="{{ url_for('web.proxies') }}">
+    <div class="statcard__label">Proxies</div>
+    <div class="statcard__value">{{ proxies_count }}</div>
+    <div class="statcard__hint">Ver listado</div>
+  </a>
+</div>
+
+{% if proxy_stats %}
+<div class="pagehead" style="margin-top: 24px;">
+  <div>
+    <h2 class="h2">Estadísticas de Dataimpulse</h2>
+    <div class="muted">Proxy: {{ proxy_stats.proxy_name }}</div>
   </div>
+</div>
+<div class="cards">
+  <div class="statcard">
+    <div class="statcard__label">Tráfico Total</div>
+    <div class="statcard__value">{{ "%.2f"|format(proxy_stats.total_traffic / 1024 / 1024 / 1024) }} GB</div>
+  </div>
+  <div class="statcard">
+    <div class="statcard__label">Tráfico Usado</div>
+    <div class="statcard__value">{{ "%.2f"|format(proxy_stats.traffic_used / 1024 / 1024 / 1024) }} GB</div>
+  </div>
+  <div class="statcard">
+    <div class="statcard__label">Tráfico Restante</div>
+    <div class="statcard__value">{{ "%.2f"|format(proxy_stats.traffic_left / 1024 / 1024 / 1024) }} GB</div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
-
-

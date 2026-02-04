@@ -6,6 +6,7 @@ from app.controllers.users import auth_bp
 from app.controllers.emails import emails_bp
 from app.controllers.accounts import accounts_bp
 from app.controllers.bots import bots_bp
+from app.controllers.proxies import proxies_bp
 from app.web import web_bp
 from app.database import init_db
 from app.database import db
@@ -17,6 +18,7 @@ from app.models.user import User
 from app.models.email import Email
 from app.models.account import Account
 from app.models.bot import Bot
+from app.models.proxy import Proxy
 
 load_dotenv()
 
@@ -53,6 +55,7 @@ def create_app():
     app.register_blueprint(emails_bp)
     app.register_blueprint(accounts_bp)
     app.register_blueprint(bots_bp)
+    app.register_blueprint(proxies_bp)
     app.register_blueprint(web_bp, url_prefix="/web")
 
     init_db(app)

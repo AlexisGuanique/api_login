@@ -8,5 +8,7 @@ populate_db.py
 
 .env
 
+.DS_Store
 
 app/database/users.db
+*/*.db

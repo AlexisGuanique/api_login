@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% macro sort_link(label, key) -%}
+{%- set next_dir = 'asc' if sort != key or dir == 'desc' else 'desc' -%}
+{%- set arrow = ' ▲' if sort == key and dir == 'asc' else (' ▼' if sort == key and dir == 'desc' else '') -%}
+<a class="sortlink" href="?page=1&per_page={{ per_page }}&sort={{ key }}&dir={{ next_dir }}">{{ label }}{{ arrow }}</a>
+{%- endmacro %}
+
+<div class="pagehead">
+  <div>
+    <h1 class="h1">Proxies</h1>
+    <div class="muted">
+      {% if total > 0 %}
+      Mostrando {{ ((page - 1) * per_page) + 1 }} - {{ [page * per_page, total]|min }} de {{ total }} total
+      {% else %}
+      0 total
+      {% endif %}
+    </div>
+  </div>
+  <a href="{{ url_for('web.proxy_create') }}" class="button">+ Agregar Proxy</a>
+</div>
+
+<section class="card" style="margin-top: 16px;">
+  <div class="tablewrap">
+    <div class="tablewrap__x">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ sort_link('Nombre', 'name') }}</th>
+            <th>{{ sort_link('Host', 'host') }}</th>
+            <th>{{ sort_link('Puerto', 'port') }}</th>
+            <th>{{ sort_link('Tipo', 'kind') }}</th>
+            <th>Estado</th>
+            <th>{{ sort_link('Creado', 'created_at') }}</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in proxies %}
+          <tr>
+            <td><strong>{{ p.name }}</strong></td>
+            <td><code>{{ p.host }}</code></td>
+            <td><code>{{ p.port }}</code></td>
+            <td>
+              <span
+                class="status-badge {% if p.kind == 'Dataimpulse' %}status-badge--running{% else %}status-badge--offline{% endif %}">
+                {{ p.kind }}
+              </span>
+            </td>
+            <td>
+              {% if p.is_active %}
+              <span class="status-badge status-badge--online">Activo</span>
+              {% else %}
+              <span class="status-badge status-badge--stopped">Inactivo</span>
+              {% endif %}
+            </td>
+            <td class="muted">{{ p.created_at }}</td>
+            <td>
+              <a href="{{ url_for('web.proxy_edit', proxy_id=p.id) }}" class="button button--small"
+                title="Editar">✏️</a>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if proxies|length == 0 %}
+          <tr>
+            <td colspan="7" class="muted">No hay proxies registrados. <a
+                href="{{ url_for('web.proxy_create') }}">Agregar uno</a></td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}" class="pagination__btn">←
+      Anterior</a>
+    {% else %}
+    <span class="pagination__btn pagination__btn--disabled">← Anterior</span>
+    {% endif %}
+
+    <span class="pagination__info">Página {{ page }} de {{ total_pages }}</span>
+
+    {% if page < total_pages %} <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}"
+      class="pagination__btn">Siguiente →</a>
+      {% else %}
+      <span class="pagination__btn pagination__btn--disabled">Siguiente →</span>
+      {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
