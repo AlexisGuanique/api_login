@@ -12,8 +12,12 @@ from app.models.email import Email
 from app.models.user import User
 from app.models.bot import Bot
 from app.models.proxy import Proxy, ProxyKind
+from app.models.vps import VPS
+from app.models.contabo_config import ContaboConfig
 from app.services.encrypt import encrypt_service
 from app.services.proxy_providers import DataimpulseProvider
+from app.services.contabo import ContaboService, sync_instances_to_db
+from app.services.contabo_encrypt import contabo_encrypt_service
 
 
 web_bp = Blueprint("web", __name__)
@@ -640,3 +644,232 @@ def proxy_edit(proxy_id):
         error=error,
         success=success,
     )
+
+
+# =============================================================================
+# VPS ROUTES
+# =============================================================================
+
+@web_bp.get("/vps")
+def vps_list():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    # Check if user has Contabo config
+    has_config = ContaboConfig.query.filter_by(user_id=user.id).first() is not None
+
+    # Pagination + sorting
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    per_page = min(per_page, 100)
+    page = max(page, 1)
+
+    sort = (request.args.get("sort") or "created_at").strip()
+    direction = (request.args.get("dir") or "desc").strip().lower()
+    direction = direction if direction in ("asc", "desc") else "desc"
+
+    sort_map = {
+        "display_name": VPS.display_name,
+        "ip_v4": VPS.ip_v4,
+        "status": VPS.status,
+        "data_center": VPS.data_center,
+        "created_at": VPS.created_at,
+    }
+    sort_col = sort_map.get(sort, VPS.created_at)
+
+    order_expr = sort_col.asc() if direction == "asc" else sort_col.desc()
+    query = VPS.query.filter_by(user_id=user.id).order_by(order_expr)
+    total = query.count()
+
+    offset = (page - 1) * per_page
+    vps_instances = query.offset(offset).limit(per_page).all()
+
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+
+    # Check for flash messages from session
+    error = session.pop("vps_error", None)
+    success = session.pop("vps_success", None)
+
+    return render_template(
+        "vps_list.html",
+        user=user,
+        vps_list=[v.to_dict() for v in vps_instances],
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+        sort=sort if sort in sort_map else "created_at",
+        dir=direction,
+        has_config=has_config,
+        error=error,
+        success=success,
+    )
+
+
+@web_bp.post("/vps/sync")
+def vps_sync():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    try:
+        config = ContaboConfig.query.filter_by(user_id=user.id).first()
+        if not config:
+            session["vps_error"] = "Configura Contabo primero"
+            return redirect(url_for("web.contabo_config"))
+
+        # Decrypt credentials
+        client_secret = contabo_encrypt_service.decrypt(config.client_secret)
+        password = contabo_encrypt_service.decrypt(config.password)
+
+        if not client_secret or not password:
+            session["vps_error"] = "Error al descifrar credenciales"
+            return redirect(url_for("web.vps_list"))
+
+        # Create service and sync
+        service = ContaboService(
+            client_id=config.client_id,
+            client_secret=client_secret,
+            username=config.username,
+            password=password
+        )
+
+        result = sync_instances_to_db(user.id, service)
+        session["vps_success"] = f"Sincronización completada: {result['added']} agregados, {result['skipped']} existentes"
+
+    except Exception as e:
+        db.session.rollback()
+        session["vps_error"] = f"Error en sincronización: {str(e)}"
+
+    return redirect(url_for("web.vps_list"))
+
+
+@web_bp.post("/vps/<int:vps_id>/restart")
+def vps_restart(vps_id):
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    try:
+        vps = VPS.query.filter_by(id=vps_id, user_id=user.id).first()
+        if not vps:
+            session["vps_error"] = "VPS no encontrado"
+            return redirect(url_for("web.vps_list"))
+
+        config = ContaboConfig.query.filter_by(user_id=user.id).first()
+        if not config:
+            session["vps_error"] = "Configura Contabo primero"
+            return redirect(url_for("web.contabo_config"))
+
+        # Decrypt credentials
+        client_secret = contabo_encrypt_service.decrypt(config.client_secret)
+        password = contabo_encrypt_service.decrypt(config.password)
+
+        if not client_secret or not password:
+            session["vps_error"] = "Error al descifrar credenciales"
+            return redirect(url_for("web.vps_list"))
+
+        # Create service and restart
+        service = ContaboService(
+            client_id=config.client_id,
+            client_secret=client_secret,
+            username=config.username,
+            password=password
+        )
+
+        service.restart_instance(vps.instance_id)
+
+        session["vps_success"] = f"Reinicio solicitado para {vps.display_name or vps.instance_id}"
+
+    except Exception as e:
+        session["vps_error"] = f"Error al reiniciar: {str(e.response.json()['error']['message'])}"
+
+    return redirect(url_for("web.vps_list"))
+
+
+# =============================================================================
+# CONTABO CONFIG ROUTES
+# =============================================================================
+
+@web_bp.route("/contabo-config", methods=["GET", "POST"])
+def contabo_config():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    config = ContaboConfig.query.filter_by(user_id=user.id).first()
+    form_data = {}
+    error = None
+    success = None
+
+    if request.method == "POST":
+        form_data = {
+            "client_id": (request.form.get("client_id") or "").strip(),
+            "client_secret": request.form.get("client_secret", ""),
+            "username": (request.form.get("username") or "").strip(),
+            "password": request.form.get("password", ""),
+        }
+
+        if not form_data["client_id"] or not form_data["username"]:
+            error = "Client ID y Username son requeridos."
+        elif not config and (not form_data["client_secret"] or not form_data["password"]):
+            error = "Client Secret y Password son requeridos para nueva configuración."
+        else:
+            try:
+                if config:
+                    # Update existing
+                    config.client_id = form_data["client_id"]
+                    config.username = form_data["username"]
+                    if form_data["client_secret"]:
+                        config.client_secret = contabo_encrypt_service.encrypt(form_data["client_secret"])
+                    if form_data["password"]:
+                        config.password = contabo_encrypt_service.encrypt(form_data["password"])
+                else:
+                    # Create new
+                    config = ContaboConfig(
+                        user_id=user.id,
+                        client_id=form_data["client_id"],
+                        client_secret=contabo_encrypt_service.encrypt(form_data["client_secret"]),
+                        username=form_data["username"],
+                        password=contabo_encrypt_service.encrypt(form_data["password"]),
+                    )
+                    db.session.add(config)
+
+                db.session.commit()
+                success = "Configuración guardada exitosamente."
+                form_data = {}  # Clear form after success
+
+            except Exception as e:
+                db.session.rollback()
+                error = f"Error al guardar: {str(e)}"
+
+    return render_template(
+        "contabo_config.html",
+        user=user,
+        config=config.to_dict() if config else None,
+        form_data=form_data,
+        error=error,
+        success=success,
+    )
+
