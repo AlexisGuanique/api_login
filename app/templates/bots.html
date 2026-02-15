@@ -45,6 +45,16 @@
         </button>
         <!-- Botones adicionales para logueadores (solo visibles en pestaña de logueadores) -->
         <button 
+          id="open-ultra-all-bots" 
+          class="global-control-btn logueador-only-btn" 
+          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; padding: 0; position: relative; color: #10b981;"
+          onmouseover="this.style.transform='scale(1.15)'"
+          onmouseout="this.style.transform='scale(1)'"
+        >
+          ▶️
+          <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Abrir Ultra en bots seleccionados</span>
+        </button>
+        <button 
           id="close-ultra-all-bots" 
           class="global-control-btn logueador-only-btn" 
           style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; padding: 0; position: relative; color: #f59e0b;"
@@ -205,6 +215,7 @@
                     <button class="button button--small button--primary" data-bot-id="{{ bot.id }}" data-command="start">Iniciar</button>
                     <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
                   {% endif %}
+                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="open_ultra" style="background-color: #10b981; color: white;">Abrir Ultra</button>
                   <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
                   <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 {% else %}
@@ -351,6 +362,7 @@
             if (newStatus === 'running') {
               newButtonsHTML = `
                 <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="open_ultra" style="background-color: #10b981; color: white;">Abrir Ultra</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
@@ -359,6 +371,7 @@
               newButtonsHTML = `
                 <button class="button button--small button--primary" data-bot-id="${botId}" data-command="start">Iniciar</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="open_ultra" style="background-color: #10b981; color: white;">Abrir Ultra</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
@@ -391,6 +404,7 @@
     // Escuchar confirmaciones de acciones completadas por los bots
     socket.on('bot_action_completed', (data) => {
       const actionNames = {
+        'open_ultra': 'Abrir Ultra',
         'close_ultra': 'Cerrar Ultra',
         'delete_cache': 'Eliminar Cache',
         'start': 'Iniciar',
@@ -483,6 +497,7 @@
         'stop': 'Detener',
         'execute_creator': 'Ejecutar Creator',
         'restart': 'Reiniciar',
+        'open_ultra': 'Abrir Ultra',
         'close_ultra': 'Cerrar Ultra',
         'delete_cache': 'Eliminar Cache'
       };
@@ -852,6 +867,7 @@
         const botTypeName = activeType === 'creador' ? 'creadores' : 'logueadores';
         const startBtn = document.getElementById('start-all-bots');
         const stopBtn = document.getElementById('stop-all-bots');
+        const openUltraBtn = document.getElementById('open-ultra-all-bots');
         const closeUltraBtn = document.getElementById('close-ultra-all-bots');
         const deleteCacheBtn = document.getElementById('delete-cache-all-bots');
         
@@ -869,11 +885,13 @@
         }
         
         // Mostrar/ocultar botones de logueadores según la pestaña activa
-        if (closeUltraBtn && deleteCacheBtn) {
+        if (openUltraBtn && closeUltraBtn && deleteCacheBtn) {
           if (activeType === 'logueador') {
+            openUltraBtn.style.display = 'flex';
             closeUltraBtn.style.display = 'flex';
             deleteCacheBtn.style.display = 'flex';
           } else {
+            openUltraBtn.style.display = 'none';
             closeUltraBtn.style.display = 'none';
             deleteCacheBtn.style.display = 'none';
           }
@@ -991,6 +1009,27 @@
         
         try {
           await sendCommandToSelectedBots(activeType, 'stop');
+        } catch (err) {
+          console.error('Error:', err);
+        } finally {
+          this.disabled = false;
+          this.style.opacity = '1';
+        }
+      });
+
+      document.getElementById('open-ultra-all-bots')?.addEventListener('click', async function() {
+        const activeType = getActiveTabType();
+        
+        // Solo permitir en logueadores
+        if (activeType !== 'logueador') {
+          return;
+        }
+        
+        this.disabled = true;
+        this.style.opacity = '0.6';
+        
+        try {
+          await sendCommandToSelectedBots(activeType, 'open_ultra');
         } catch (err) {
           console.error('Error:', err);
         } finally {
