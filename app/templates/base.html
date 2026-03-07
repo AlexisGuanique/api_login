@@ -39,6 +39,10 @@
           href="{{ url_for('web.bots') }}">Bots</a>
         <a class="sideitem {% if request.endpoint in ['web.proxies','web.proxy_create','web.proxy_edit'] %}sideitem--active{% endif %}"
           href="{{ url_for('web.proxies') }}">Proxies</a>
+        <a class="sideitem {% if request.endpoint in ['web.vps_list','web.vps_sync','web.vps_restart'] %}sideitem--active{% endif %}"
+          href="{{ url_for('web.vps_list') }}">VPS</a>
+        <a class="sideitem {% if request.endpoint == 'web.contabo_config' %}sideitem--active{% endif %}"
+          href="{{ url_for('web.contabo_config') }}">Contabo</a>
         <a class="sideitem {% if request.endpoint in ['web.user_profile','web.user_profile_post'] %}sideitem--active{% endif %}"
           href="{{ url_for('web.user_profile') }}">User</a>
       </nav>

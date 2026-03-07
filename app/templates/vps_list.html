@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% macro sort_link(label, key) -%}
+{%- set next_dir = 'asc' if sort != key or dir == 'desc' else 'desc' -%}
+{%- set arrow = ' ▲' if sort == key and dir == 'asc' else (' ▼' if sort == key and dir == 'desc' else '') -%}
+<a class="sortlink" href="?page=1&per_page={{ per_page }}&sort={{ key }}&dir={{ next_dir }}">{{ label }}{{ arrow }}</a>
+{%- endmacro %}
+
+<div class="pagehead">
+    <div>
+        <h1 class="h1">VPS Instances</h1>
+        <div class="muted">
+            {% if total > 0 %}
+            Mostrando {{ ((page - 1) * per_page) + 1 }} - {{ [page * per_page, total]|min }} de {{ total }} total
+            {% else %}
+            0 total
+            {% endif %}
+        </div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+        <form method="POST" action="{{ url_for('web.vps_sync') }}" style="display: inline;">
+            <button type="submit" class="button button--secondary">🔄 Sincronizar desde Contabo</button>
+        </form>
+        <a href="{{ url_for('web.contabo_config') }}" class="button">⚙️ Configuración</a>
+    </div>
+</div>
+
+<section class="card" style="margin-top: 16px;">
+    {% if error %}
+    <div class="alert alert--error" style="margin-bottom: 16px;">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert--success" style="margin-bottom: 16px;">{{ success }}</div>
+    {% endif %}
+
+    <div class="tablewrap">
+        <div class="tablewrap__x">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>{{ sort_link('Nombre', 'display_name') }}</th>
+                        <th>{{ sort_link('IP', 'ip_v4') }}</th>
+                        <th>{{ sort_link('Status', 'status') }}</th>
+                        <th>CPU</th>
+                        <th>RAM</th>
+                        <th>{{ sort_link('Datacenter', 'data_center') }}</th>
+                        <th>{{ sort_link('Creado', 'created_at') }}</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vps_list %}
+                    <tr>
+                        <td>
+                            <strong>{{ v.display_name or v.contabo_name or 'Sin nombre' }}</strong>
+                            <div class="muted" style="font-size: 0.75rem;">{{ v.instance_id }}</div>
+                        </td>
+                        <td><code>{{ v.ip_v4 or '-' }}</code></td>
+                        <td>
+                            <span
+                                class="status-badge {% if v.status == 'running' %}status-badge--online{% elif v.status == 'stopped' %}status-badge--stopped{% else %}status-badge--offline{% endif %}">
+                                {{ v.status or 'unknown' }}
+                            </span>
+                        </td>
+                        <td>{{ v.cpu_cores or '-' }} cores</td>
+                        <td>{{ (v.ram_mb / 1024)|round(1) if v.ram_mb else '-' }} GB</td>
+                        <td>{{ v.data_center or '-' }}</td>
+                        <td class="muted">{{ v.created_at|fmt_dt }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('web.vps_restart', vps_id=v.id) }}"
+                                style="display: inline;" onsubmit="return confirm('¿Reiniciar este VPS?');">
+                                <button type="submit" class="button button--small button--danger"
+                                    title="Reiniciar">🔄</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if vps_list|length == 0 %}
+                    <tr>
+                        <td colspan="8" class="muted">
+                            No hay VPS registrados.
+                            {% if not has_config %}
+                            <a href="{{ url_for('web.contabo_config') }}">Configura Contabo</a> primero.
+                            {% else %}
+                            <form method="POST" action="{{ url_for('web.vps_sync') }}" style="display: inline;">
+                                <button type="submit" class="button button--small">Sincronizar ahora</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}" class="pagination__btn">←
+            Anterior</a>
+        {% else %}
+        <span class="pagination__btn pagination__btn--disabled">← Anterior</span>
+        {% endif %}
+
+        <span class="pagination__info">Página {{ page }} de {{ total_pages }}</span>
+
+        {% if page < total_pages %} <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}"
+            class="pagination__btn">Siguiente →</a>
+            {% else %}
+            <span class="pagination__btn pagination__btn--disabled">Siguiente →</span>
+            {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
