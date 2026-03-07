@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="pagehead">
+    <div>
+        <h1 class="h1">Editar Proxy</h1>
+        <div class="muted">Modifica los datos del proxy.</div>
+    </div>
+    <a href="{{ url_for('web.proxies') }}" class="button"
+        style="background: var(--card); color: var(--text); border: 1px solid var(--line);">← Volver</a>
+</div>
+
+<section class="card" style="max-width: 600px; margin-top: 16px;">
+    {% if error %}
+    <div class="alert alert--error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert--ok">{{ success }}</div>
+    {% endif %}
+
+    <form class="form" method="POST">
+        <label class="label">
+            Nombre *
+            <input class="input" type="text" name="name" placeholder="Mi Proxy Dataimpulse"
+                value="{{ proxy.name or '' }}" required />
+        </label>
+
+        <label class="label">
+            Host *
+            <input class="input" type="text" name="host" placeholder="gw.dataimpulse.com" value="{{ proxy.host or '' }}"
+                required />
+        </label>
+
+        <label class="label">
+            Puerto *
+            <input class="input" type="number" name="port" placeholder="823" value="{{ proxy.port or '' }}" required />
+        </label>
+
+        <label class="label">
+            Tipo *
+            <select class="input" name="kind" required>
+                <option value="Dataimpulse" {% if proxy.kind=='Dataimpulse' %}selected{% endif %}>Dataimpulse</option>
+                <option value="unknown" {% if proxy.kind=='unknown' %}selected{% endif %}>Otro (unknown)</option>
+            </select>
+        </label>
+
+        <label class="label">
+            Usuario (para autenticación)
+            <input class="input" type="text" name="username" placeholder="usuario" value="{{ proxy.username or '' }}" />
+        </label>
+
+        <label class="label">
+            Nueva Contraseña (dejar vacío para mantener la actual)
+            <div class="inputwrap">
+                <input class="input" type="password" name="password" id="passwordField" placeholder="••••••••"
+                    value="" />
+                <button type="button" class="eye" onclick="togglePassword()"
+                    aria-label="Mostrar/ocultar contraseña">👁</button>
+            </div>
+            <small class="muted">Solo se actualizará si escribes una nueva contraseña.</small>
+        </label>
+
+        <label class="label" style="flex-direction: row; align-items: center; gap: 10px;">
+            <input type="checkbox" name="is_active" {% if proxy.is_active %}checked{% endif %} style="width: auto;" />
+            Activo
+        </label>
+
+        <button type="submit" class="button" style="margin-top: 10px;">Guardar Cambios</button>
+    </form>
+</section>
+
+<script>
+    function togglePassword() {
+        var field = document.getElementById('passwordField');
+        field.type = field.type === 'password' ? 'text' : 'password';
+    }
+</script>
+{% endblock %}

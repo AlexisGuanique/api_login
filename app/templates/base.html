@@ -1,76 +1,87 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{ title or " UltraBot Central" }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
-    <script>
-      // Aplica el tema lo más temprano posible (evita “flash”).
-      (function () {
-        try {
-          var saved = localStorage.getItem("theme");
-          if (saved === "light" || saved === "dark") {
-            document.documentElement.setAttribute("data-theme", saved);
-          }
-        } catch (e) {}
-      })();
-    </script>
-  </head>
-  <body>
-    <div class="overlay" id="sidebarOverlay" aria-hidden="true"></div>
-    <div class="app">
-      <aside class="sidebar">
-        <div class="sidebar__brand">
-          <div class="brand__title">UltraBot Central</div>
 
-        </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title or " UltraBot Central" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+  <script>
+    // Aplica el tema lo más temprano posible (evita “flash”).
+    (function () {
+      try {
+        var saved = localStorage.getItem("theme");
+        if (saved === "light" || saved === "dark") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (e) { }
+    })();
+  </script>
+</head>
 
-        <nav class="sidebar__nav">
-          <a class="sideitem {% if request.endpoint == 'web.dashboard' %}sideitem--active{% endif %}" href="{{ url_for('web.dashboard') }}">Dashboard</a>
-          <a class="sideitem {% if request.endpoint == 'web.accounts' %}sideitem--active{% endif %}" href="{{ url_for('web.accounts') }}">Cuentas</a>
-          <a class="sideitem {% if request.endpoint == 'web.bots' %}sideitem--active{% endif %}" href="{{ url_for('web.bots') }}">Bots</a>
-          <a class="sideitem {% if request.endpoint in ['web.user_profile','web.user_profile_post'] %}sideitem--active{% endif %}" href="{{ url_for('web.user_profile') }}">User</a>
-        </nav>
+<body>
+  <div class="overlay" id="sidebarOverlay" aria-hidden="true"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand__title">UltraBot Central</div>
 
-        <div class="sidebar__footer">
-          <a class="sideitem sideitem--danger" href="{{ url_for('web.logout') }}">Salir</a>
-        </div>
-      </aside>
-
-      <div class="main">
-        <header class="topmenu">
-          <div class="topmenu__inner">
-            <div class="topmenu__left">
-              <button type="button" class="iconbtn iconbtn--hamburger" id="sidebarToggle" aria-label="Abrir menú" title="Menú">
-                <span aria-hidden="true">≡</span>
-              </button>
-            </div>
-            <div class="welcome">
-              {% if user %}
-                Bienvenido <strong>{{ (user.name or user.username) ~ (" " ~ user.lastname if user.lastname else "") }}</strong>
-              {% else %}
-                Bienvenido
-              {% endif %}
-            </div>
-            <div class="topmenu__actions">
-              <button type="button" class="iconbtn" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
-                <span class="iconbtn__sun" aria-hidden="true">☀</span>
-                <span class="iconbtn__moon" aria-hidden="true">☾</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <main class="content">
-          {% block content %}{% endblock %}
-        </main>
       </div>
+
+      <nav class="sidebar__nav">
+        <a class="sideitem {% if request.endpoint == 'web.dashboard' %}sideitem--active{% endif %}"
+          href="{{ url_for('web.dashboard') }}">Dashboard</a>
+        <a class="sideitem {% if request.endpoint == 'web.accounts' %}sideitem--active{% endif %}"
+          href="{{ url_for('web.accounts') }}">Cuentas</a>
+        <a class="sideitem {% if request.endpoint == 'web.emails' %}sideitem--active{% endif %}"
+          href="{{ url_for('web.emails') }}">Emails</a>
+        <a class="sideitem {% if request.endpoint == 'web.bots' %}sideitem--active{% endif %}"
+          href="{{ url_for('web.bots') }}">Bots</a>
+        <a class="sideitem {% if request.endpoint in ['web.proxies','web.proxy_create','web.proxy_edit'] %}sideitem--active{% endif %}"
+          href="{{ url_for('web.proxies') }}">Proxies</a>
+        <a class="sideitem {% if request.endpoint in ['web.user_profile','web.user_profile_post'] %}sideitem--active{% endif %}"
+          href="{{ url_for('web.user_profile') }}">User</a>
+      </nav>
+
+      <div class="sidebar__footer">
+        <a class="sideitem sideitem--danger" href="{{ url_for('web.logout') }}">Salir</a>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topmenu">
+        <div class="topmenu__inner">
+          <div class="topmenu__left">
+            <button type="button" class="iconbtn iconbtn--hamburger" id="sidebarToggle" aria-label="Abrir menú"
+              title="Menú">
+              <span aria-hidden="true">≡</span>
+            </button>
+          </div>
+          <div class="welcome">
+            {% if user %}
+            Bienvenido <strong>{{ (user.name or user.username) ~ (" " ~ user.lastname if user.lastname else "")
+              }}</strong>
+            {% else %}
+            Bienvenido
+            {% endif %}
+          </div>
+          <div class="topmenu__actions">
+            <button type="button" class="iconbtn" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
+              <span class="iconbtn__sun" aria-hidden="true">☀</span>
+              <span class="iconbtn__moon" aria-hidden="true">☾</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
     </div>
-    <script src="{{ url_for('static', filename='theme.js') }}"></script>
-    <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
-    <script src="{{ url_for('static', filename='tooltip.js') }}"></script>
-  </body>
+  </div>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <script src="{{ url_for('static', filename='sidebar.js') }}"></script>
+  <script src="{{ url_for('static', filename='tooltip.js') }}"></script>
+</body>
+
 </html>
-
-
