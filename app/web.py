@@ -154,7 +154,7 @@ def dashboard():
     ).filter_by(user_id=user_id).group_by(VPS.cpu_cores).order_by(VPS.cpu_cores).all()
     
     vps_total = VPS.query.filter_by(user_id=user_id).count()
-    vps_by_cpu_dict = {str(cpu): count for cpu, count in vps_by_cpu}
+    vps_by_cpu_dict = {str(cpu): count for cpu, count in vps_by_cpu} if vps_by_cpu else {}
     
     # Obtener cuentas por hora (últimas 24 horas)
     from datetime import datetime, timedelta

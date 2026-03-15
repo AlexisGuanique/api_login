@@ -85,7 +85,10 @@ html[data-sidebar="open"] .overlay{opacity:1;pointer-events:auto}
 .sideitem--danger:hover{border-color:transparent;background:rgba(255,107,107,.12);color:var(--text)}
 .sideitem:focus{outline:none}
 .sideitem:focus-visible{outline:2px solid rgba(110,168,254,.55);outline-offset:2px}
-.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+/* CORRECCIÓN EN MAIN PARA PERMITIR SCROLL DE CONTENIDO */
+.main{display:flex;flex-direction:column;min-width:0;min-height:100vh;overflow-y:auto}
+
 .topmenu{position:sticky;top:0;border-bottom:1px solid var(--line);background:var(--panel);backdrop-filter: blur(10px);z-index:10;flex:0 0 auto}
 .topmenu__inner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px 18px}
 .topmenu__left{display:flex;align-items:center;gap:10px}
@@ -99,11 +102,11 @@ html[data-sidebar="open"] .overlay{opacity:1;pointer-events:auto}
 .iconbtn__moon{display:inline}
 html[data-theme="light"] .iconbtn__sun{display:inline}
 html[data-theme="light"] .iconbtn__moon{display:none}
-.content{padding:18px;flex:1 1 auto;overflow:auto}
+.content{padding:18px;flex:1 1 auto}
 .content{min-width:0}
 .tablewrap{
   width:100%;
-  max-width:1200px; /* evita que se estire demasiado en pantallas grandes */
+  max-width:1200px; 
   margin:0 auto;
   border-radius:12px;
   border:1px solid var(--line);
@@ -114,13 +117,32 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 .table th{position:sticky;top:0;background:var(--thead)}
 .truncate{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
-.cards{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}
-@media (min-width: 980px){.cards{grid-template-columns:1fr 1fr 1fr}}
-.statcard{display:block;text-decoration:none;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 4px 12px var(--shadow)}
-.statcard:hover{border-color:rgba(110,168,254,.35);background:rgba(110,168,254,.10);box-shadow:0 6px 16px var(--shadow)}
+
+/* --- SECCIÓN CORREGIDA DE CARDS --- */
+.cards {
+  display: grid;
+  /* Crea columnas automáticamente de al menos 200px. 
+     Esto permite que se vean 5 tarjetas si hay espacio, o bajen si no. */
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+/* Ajuste para pantallas muy pequeñas (móviles) */
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.statcard{display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 4px 12px var(--shadow);transition:transform 0.2s ease}
+.statcard:hover{border-color:rgba(110,168,254,.35);background:rgba(110,168,254,.10);box-shadow:0 6px 16px var(--shadow);transform:translateY(-2px)}
 .statcard__label{color:var(--muted);font-size:13px}
-.statcard__value{font-size:26px;font-weight:800;margin-top:6px;color:var(--text)}
+.statcard__value{font-size:24px;font-weight:800;margin-top:6px;color:var(--text);word-break:break-all}
 .statcard__hint{color:var(--muted);font-size:12px;margin-top:8px}
+/* ---------------------------------- */
+
 .kv{display:flex;flex-direction:column;gap:8px}
 .kv__row{display:flex;gap:12px}
 .kv__k{width:120px;color:var(--muted)}
@@ -143,7 +165,6 @@ html[data-theme="light"] .iconbtn__moon{display:none}
   .welcome{justify-self:center;text-align:center}
   .main{height:100dvh}
 
-  /* sidebar as drawer */
   .sidebar{
     position:fixed;left:0;top:0;height:100vh;height:100dvh;width:280px;
     transform:translateX(-110%);
@@ -152,7 +173,6 @@ html[data-theme="light"] .iconbtn__moon{display:none}
     border-right:1px solid var(--line);
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
-    /* espacio extra leve para que el bottom bar del navegador (iOS Chrome) no tape el último item */
     padding-bottom:calc(18px + env(safe-area-inset-bottom) + 18px);
   }
   html[data-sidebar="open"] .sidebar{transform:translateX(0)}
@@ -160,7 +180,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
   .iconbtn--hamburger{display:inline-flex}
   .sidebar__footer{
     margin-top:auto;
-    position:static; /* evita que "Salír" flote y se desordene en landscape */
+    position:static;
     padding-top:0;
     padding-bottom:0;
   }
@@ -191,7 +211,7 @@ html[data-theme="light"] .iconbtn__moon{display:none}
   background:var(--card);
   color:var(--text);
   box-shadow:0 12px 30px var(--shadow);
-  display:none; /* evita que agregue ancho/scroll "fantasma" */
+  display:none;
   z-index:100;
 }
 .tooltip__panel pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px;line-height:1.35}
@@ -212,5 +232,3 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 .button--small{padding:6px 12px;font-size:13px}
 .button--danger{background:var(--danger);color:#fff}
 .button--danger:hover{filter:brightness(1.1)}
-
-
