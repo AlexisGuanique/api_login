@@ -226,15 +226,20 @@ def sync_instances_to_db(user_id: int, contabo_service: 'ContaboService') -> Dic
     
     added = 0
     skipped = 0
+    conflicts = 0  # VPS que existen pero pertenecen a otro usuario
 
-    vps_instance_ids = [v[0] for v in VPS.query.with_entities(VPS.instance_id).filter_by(user_id=user_id).all()]
-    
     for instance in instances:
         instance_id = str(instance.get("instanceId"))
         
-        # Check if already exists
-        if instance_id in vps_instance_ids:
-            skipped += 1
+        # Check if already exists (globalmente, porque instance_id tiene restricción UNIQUE)
+        existing_vps = VPS.query.filter_by(instance_id=instance_id).first()
+        if existing_vps:
+            # Si existe y es del mismo usuario, saltarlo
+            if existing_vps.user_id == user_id:
+                skipped += 1
+            else:
+                # Si existe pero es de otro usuario, es un conflicto (no debería pasar normalmente)
+                conflicts += 1
             continue
         
         # Parse created date
@@ -277,10 +282,20 @@ def sync_instances_to_db(user_id: int, contabo_service: 'ContaboService') -> Dic
         db.session.add(new_vps)
         added += 1
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        raise
     
-    return {
+    result = {
         "added": added,
         "skipped": skipped,
         "total_from_contabo": len(instances),
     }
+    
+    if conflicts > 0:
+        result["conflicts"] = conflicts
+        result["warning"] = f"{conflicts} VPS ya existen pero pertenecen a otro usuario"
+    
+    return result

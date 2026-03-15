@@ -818,11 +818,25 @@ def vps_sync():
 
         result = sync_instances_to_db(user.id, service)
         total_from_api = result.get('total_from_contabo', 0)
-        session["vps_success"] = f"Sincronización completada: {result['added']} agregados, {result['skipped']} existentes. Total desde API: {total_from_api}"
+        
+        message = f"Sincronización completada: {result['added']} agregados, {result['skipped']} existentes. Total desde API: {total_from_api}"
+        if result.get('conflicts', 0) > 0:
+            message += f". ⚠️ {result.get('warning', '')}"
+        session["vps_success"] = message
 
+    except ValueError as e:
+        # Errores de validación o autenticación
+        db.session.rollback()
+        session["vps_error"] = str(e)
+        return redirect(url_for("web.vps_list"))
     except Exception as e:
         db.session.rollback()
-        session["vps_error"] = f"Error en sincronización: {str(e)}"
+        error_msg = str(e)
+        # Detectar errores de restricción UNIQUE
+        if "UNIQUE constraint failed" in error_msg or "IntegrityError" in error_msg:
+            session["vps_error"] = "Error: Un VPS con ese instance_id ya existe en la base de datos. Intenta eliminar todos los VPS y sincronizar nuevamente."
+        else:
+            session["vps_error"] = f"Error en sincronización: {error_msg}"
 
     return redirect(url_for("web.vps_list"))
 
