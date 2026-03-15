@@ -131,6 +131,91 @@ with app.app_context():
         print('ERROR')
 " 2>/dev/null || true)
 
+# Verificar y corregir tablas con estructura incorrecta ANTES de aplicar migraciones
+echo "🔍 Verificando estructura de tablas críticas..."
+TABLES_FIXED=$(sudo docker exec "$CONTAINER_NAME" python -c "
+from sqlalchemy import inspect, text
+from app import create_app
+from app.database import db
+app, _ = create_app()
+with app.app_context():
+    inspector = inspect(db.engine)
+    tables = inspector.get_table_names()
+    tables_fixed = False
+    
+    # Verificar y corregir tabla vps
+    if 'vps' in tables:
+        columns = [col['name'] for col in inspector.get_columns('vps')]
+        required_columns = ['contabo_name', 'display_name', 'instance_id', 'ip_v4']
+        if not all(c in columns for c in required_columns):
+            print('⚠️  Tabla vps incompleta, será recreada por migraciones')
+            with db.engine.connect() as conn:
+                # Backup si tiene datos
+                try:
+                    result = conn.execute(text('SELECT COUNT(*) FROM vps'))
+                    count = result.scalar()
+                    if count > 0:
+                        conn.execute(text('CREATE TABLE IF NOT EXISTS vps_backup AS SELECT * FROM vps'))
+                        conn.commit()
+                        print(f'✅ Backup de {count} registros de vps creado')
+                except:
+                    pass
+                # Eliminar tabla incompleta
+                conn.execute(text('DROP TABLE IF EXISTS vps'))
+                conn.commit()
+                print('✅ Tabla vps incompleta eliminada')
+                tables_fixed = True
+        else:
+            print('✅ Tabla vps tiene estructura correcta')
+    else:
+        print('ℹ️  Tabla vps no existe, será creada por migraciones')
+    
+    # Verificar y corregir tabla proxies
+    if 'proxies' in tables:
+        columns = [col['name'] for col in inspector.get_columns('proxies')]
+        required_columns = ['id', 'user_id', 'name', 'host', 'port', 'kind']
+        if not all(c in columns for c in required_columns):
+            print('⚠️  Tabla proxies incompleta, será recreada por migraciones')
+            with db.engine.connect() as conn:
+                # Backup si tiene datos
+                try:
+                    result = conn.execute(text('SELECT COUNT(*) FROM proxies'))
+                    count = result.scalar()
+                    if count > 0:
+                        conn.execute(text('CREATE TABLE IF NOT EXISTS proxies_backup AS SELECT * FROM proxies'))
+                        conn.commit()
+                        print(f'✅ Backup de {count} registros de proxies creado')
+                except:
+                    pass
+                # Eliminar tabla incompleta
+                conn.execute(text('DROP TABLE IF EXISTS proxies'))
+                conn.commit()
+                print('✅ Tabla proxies incompleta eliminada')
+                tables_fixed = True
+        else:
+            print('✅ Tabla proxies tiene estructura correcta')
+    else:
+        print('ℹ️  Tabla proxies no existe, será creada por migraciones')
+    
+    # Verificar y corregir tabla contabo_config
+    if 'contabo_config' not in tables:
+        print('ℹ️  Tabla contabo_config no existe, será creada por migraciones')
+    else:
+        print('✅ Tabla contabo_config existe')
+    
+    # Si se eliminaron tablas, resetear alembic_version para forzar re-aplicación
+    if tables_fixed:
+        with db.engine.connect() as conn:
+            try:
+                conn.execute(text('DELETE FROM alembic_version'))
+                conn.commit()
+                print('🔄 Estado de Alembic reseteado para forzar re-aplicación de migraciones')
+            except:
+                pass
+    
+    print('FIXED' if tables_fixed else 'OK')
+" 2>/dev/null || echo "OK")
+
 # SIEMPRE aplicar migraciones pendientes (Alembic es seguro y solo aplica cambios pendientes)
 echo "🔄 Aplicando migraciones de base de datos..."
 echo "   (Alembic solo aplicará cambios pendientes, es seguro ejecutarlo siempre)"
@@ -144,75 +229,14 @@ else
     echo "   No hay migraciones aplicadas aún"
 fi
 
-# Verificar si la revisión actual existe en los archivos de migración
-if [ -n "$CURRENT_REVISION" ] && [ "$CURRENT_REVISION" != "None" ]; then
-    REVISION_EXISTS=$(sudo docker exec "$CONTAINER_NAME" python -c "
-from alembic.script import ScriptDirectory
-from alembic.config import Config
-config = Config('migrations/alembic.ini')
-script = ScriptDirectory.from_config(config)
-try:
-    script.get_revision('$CURRENT_REVISION')
-    print('EXISTS')
-except:
-    print('NOT_EXISTS')
-" 2>/dev/null || echo "NOT_EXISTS")
-    
-    if [ "$REVISION_EXISTS" = "NOT_EXISTS" ]; then
-        echo "⚠️  La revisión guardada ($CURRENT_REVISION) no existe en los archivos de migración"
-        echo "🔄 Corrigiendo estado de migraciones..."
-        
-        # Obtener la última revisión válida (head)
-        HEAD_REVISION=$(sudo docker exec "$CONTAINER_NAME" flask db heads 2>/dev/null | head -1 | awk '{print $1}' || echo "")
-        
-        if [ -n "$HEAD_REVISION" ]; then
-            echo "   Marcando base de datos con la revisión head: $HEAD_REVISION"
-            # Marcar la base de datos con la revisión head sin ejecutar migraciones
-            sudo docker exec "$CONTAINER_NAME" flask db stamp "$HEAD_REVISION" 2>/dev/null || {
-                echo "   ⚠️  No se pudo marcar con stamp, intentando upgrade..."
-            }
-        fi
-    fi
-fi
-
 # Aplicar todas las migraciones pendientes
 echo "⬆️  Aplicando migraciones pendientes..."
 if sudo docker exec "$CONTAINER_NAME" flask db upgrade heads; then
     echo "✅ Migraciones aplicadas exitosamente"
 else
-    echo "⚠️  Error al aplicar migraciones, intentando corregir..."
-    
-    # Intentar marcar con la revisión head si upgrade falla
-    HEAD_REVISION=$(sudo docker exec "$CONTAINER_NAME" flask db heads 2>/dev/null | head -1 | awk '{print $1}' || echo "")
-    if [ -n "$HEAD_REVISION" ]; then
-        echo "   Marcando base de datos con revisión head: $HEAD_REVISION"
-        if sudo docker exec "$CONTAINER_NAME" flask db stamp head; then
-            echo "   ✅ Base de datos marcada con revisión head"
-            echo "   ℹ️  Si las tablas ya existen, esto es normal"
-        else
-            echo "   ⚠️  No se pudo marcar la base de datos"
-        fi
-    fi
-    
-    # Verificar si hay base de datos en ubicación anterior
-    if sudo docker exec "$CONTAINER_NAME" test -f /api_login/database.db; then
-        echo "📦 Moviendo base de datos al volumen..."
-        sudo docker exec "$CONTAINER_NAME" cp /api_login/database.db /api_login/app/database/users.db
-        echo "✅ Base de datos movida al volumen"
-        
-        # Intentar aplicar migraciones nuevamente después de mover
-        echo "🔄 Reintentando aplicar migraciones..."
-        if sudo docker exec "$CONTAINER_NAME" flask db upgrade heads; then
-            echo "✅ Migraciones aplicadas exitosamente después de mover la base de datos"
-        else
-            echo "⚠️  No se pudieron aplicar todas las migraciones, pero el contenedor puede funcionar"
-            echo "   Verifica los logs: sudo docker logs $CONTAINER_NAME"
-        fi
-    else
-        echo "⚠️  No se pudieron aplicar las migraciones automáticamente"
-        echo "   El contenedor puede seguir funcionando si las tablas ya existen"
-        echo "   Verifica los logs: sudo docker logs $CONTAINER_NAME"
-    fi
+    echo "⚠️  Error al aplicar migraciones"
+    echo "   Verifica los logs: sudo docker logs $CONTAINER_NAME"
+    echo "   Puede ser necesario corregir manualmente el estado de las migraciones"
 fi
 
 # Verificar que la columna next_cycle_at existe (migración reciente)
