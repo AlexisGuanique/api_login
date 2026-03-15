@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 
 {% block content %}
@@ -18,11 +19,29 @@
             {% endif %}
         </div>
     </div>
-    <div style="display: flex; gap: 8px;">
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <form method="POST" action="{{ url_for('web.vps_restart_batch') }}" id="restart-batch-form" style="display: inline;">
+            <button type="submit" id="restart-batch-btn" class="button button--danger" disabled>
+                🔄 Reiniciar seleccionados (<span id="selected-count">0</span>)
+            </button>
+            <!-- Los checkboxes se agregarán aquí dinámicamente antes del submit -->
+        </form>
         <form method="POST" action="{{ url_for('web.vps_sync') }}" style="display: inline;">
             <button type="submit" class="button button--secondary">🔄 Sincronizar desde Contabo</button>
         </form>
         <a href="{{ url_for('web.contabo_config') }}" class="button">⚙️ Configuración</a>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="per_page_select" class="muted" style="font-size: 0.875rem;">Mostrar:</label>
+            <select id="per_page_select" name="per_page" onchange="changePerPage(this.value)" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color);">
+                <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                <option value="300" {% if per_page == 300 %}selected{% endif %}>300</option>
+                <option value="1000" {% if per_page == 1000 %}selected{% endif %}>1000</option>
+            </select>
+        </div>
     </div>
 </div>
 
@@ -39,10 +58,13 @@
             <table class="table">
                 <thead>
                     <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="select-all" title="Seleccionar todos">
+                        </th>
                         <th>{{ sort_link('Nombre', 'display_name') }}</th>
                         <th>{{ sort_link('IP', 'ip_v4') }}</th>
                         <th>{{ sort_link('Status', 'status') }}</th>
-                        <th>CPU</th>
+                        <th>{{ sort_link('CPU', 'cpu_cores') }}</th>
                         <th>RAM</th>
                         <th>{{ sort_link('Datacenter', 'data_center') }}</th>
                         <th>{{ sort_link('Creado', 'created_at') }}</th>
@@ -52,6 +74,9 @@
                 <tbody>
                     {% for v in vps_list %}
                     <tr>
+                        <td>
+                            <input type="checkbox" name="vps_ids" value="{{ v.id }}" class="vps-checkbox">
+                        </td>
                         <td>
                             <strong>{{ v.display_name or v.contabo_name or 'Sin nombre' }}</strong>
                             <div class="muted" style="font-size: 0.75rem;">{{ v.instance_id }}</div>
@@ -78,7 +103,7 @@
                     {% endfor %}
                     {% if vps_list|length == 0 %}
                     <tr>
-                        <td colspan="8" class="muted">
+                        <td colspan="9" class="muted">
                             No hay VPS registrados.
                             {% if not has_config %}
                             <a href="{{ url_for('web.contabo_config') }}">Configura Contabo</a> primero.
@@ -114,4 +139,76 @@
     </div>
     {% endif %}
 </section>
+
+<script>
+function changePerPage(value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1'); // Reset to first page
+    window.location.href = url.toString();
+}
+
+// Manejo de selección múltiple
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.vps-checkbox');
+    const restartBtn = document.getElementById('restart-batch-btn');
+    const selectedCount = document.getElementById('selected-count');
+    const restartForm = document.getElementById('restart-batch-form');
+
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('.vps-checkbox:checked').length;
+        selectedCount.textContent = checked;
+        restartBtn.disabled = checked === 0;
+    }
+
+    // Seleccionar/deseleccionar todos
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateSelectedCount();
+        });
+    }
+
+    // Actualizar contador cuando se selecciona/deselecciona un checkbox
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            updateSelectedCount();
+            // Actualizar estado de "seleccionar todos"
+            if (selectAll) {
+                const allChecked = Array.from(checkboxes).every(c => c.checked);
+                const someChecked = Array.from(checkboxes).some(c => c.checked);
+                selectAll.checked = allChecked;
+                selectAll.indeterminate = someChecked && !allChecked;
+            }
+        });
+    });
+
+    // Confirmar antes de reiniciar y mover checkboxes al formulario
+    if (restartForm) {
+        restartForm.addEventListener('submit', function(e) {
+            const checked = document.querySelectorAll('.vps-checkbox:checked');
+            if (checked.length === 0) {
+                e.preventDefault();
+                return false;
+            }
+            if (!confirm(`¿Reiniciar ${checked.length} VPS seleccionado(s)?`)) {
+                e.preventDefault();
+                return false;
+            }
+            // Mover los checkboxes seleccionados al formulario antes de enviar
+            checked.forEach(cb => {
+                const clone = cb.cloneNode(true);
+                clone.style.display = 'none';
+                restartForm.appendChild(clone);
+            });
+        });
+    }
+
+    // Inicializar contador
+    updateSelectedCount();
+});
+</script>
 {% endblock %}

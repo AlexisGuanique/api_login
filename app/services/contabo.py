@@ -59,9 +59,10 @@ class ContaboService:
         
         return self._access_token
     
-    def _make_request(self, method: str, endpoint: str, headers_override: Optional[Dict[str, str]] = None, **kwargs) -> Dict[str, Any]:
+    def _make_request(self, method: str, endpoint: str, headers_override: Optional[Dict[str, str]] = None, return_response: bool = False, **kwargs) -> Dict[str, Any]:
         """
         Make an authenticated request to the Contabo API.
+        If return_response is True, returns a tuple (json_data, response_object).
         """
         token = self._get_access_token()
         headers = {
@@ -78,15 +79,122 @@ class ContaboService:
         response = requests.request(method, url, headers=headers, **kwargs)
         response.raise_for_status()
         
-        return response.json()
+        json_data = response.json()
+        
+        if return_response:
+            return json_data, response
+        return json_data
     
     def list_instances(self) -> List[Dict[str, Any]]:
         """
         List all compute instances from Contabo account.
+        Handles pagination to get all instances.
+        According to Contabo API docs, uses page (0-indexed) and size parameters.
         Returns a list of instance data.
         """
-        result = self._make_request("GET", "compute/instances")
-        return result.get("data", [])
+        all_instances = []
+        page = 0  # Contabo API uses 0-indexed pages
+        size = 100  # Máximo por página según documentación
+        
+        # Obtener primera página sin parámetros para ver estructura
+        try:
+            result, response_obj = self._make_request("GET", "compute/instances", return_response=True)
+            data = result.get("data", [])
+            all_instances.extend(data)
+            
+            # Verificar si hay información de paginación en la respuesta
+            pagination = result.get("pagination", {})
+            
+            total_elements = pagination.get("totalElements") or pagination.get("total")
+            total_pages = pagination.get("totalPages")
+            
+            # Si hay información de paginación explícita
+            if total_pages and total_pages > 1:
+                for p in range(1, total_pages):
+                    params = {"page": p, "size": size}
+                    try:
+                        page_result = self._make_request("GET", "compute/instances", params=params)
+                        page_data = page_result.get("data", [])
+                        if page_data:
+                            all_instances.extend(page_data)
+                        else:
+                            break
+                    except Exception as e:
+                        break
+            # Si no hay info de paginación pero obtuvimos exactamente 10 (límite por defecto)
+            elif len(data) == 10:
+                # Intentar obtener más páginas - probar ambos formatos (0-indexed y 1-indexed)
+                current_page_0 = 1  # Para 0-indexed, la siguiente página es 1
+                current_page_1 = 1  # Para 1-indexed, la siguiente página es 1
+                max_attempts = 100
+                working_format = None
+                
+                while current_page_0 < max_attempts or current_page_1 < max_attempts:
+                    found_more = False
+                    
+                    # Probar diferentes formatos de parámetros
+                    param_formats = []
+                    if working_format is None:
+                        # Intentar todos los formatos posibles
+                        param_formats = [
+                            {"page": current_page_0, "size": size},  # 0-indexed
+                            {"page": current_page_1, "size": size},  # 1-indexed (mismo valor, diferente interpretación)
+                            {"pageNumber": current_page_1, "pageSize": size},
+                            {"offset": current_page_1 * size, "limit": size},
+                        ]
+                    elif working_format == "page_0":
+                        param_formats = [{"page": current_page_0, "size": size}]
+                    elif working_format == "page_1":
+                        param_formats = [{"page": current_page_1, "size": size}]
+                    elif working_format == "pageNumber":
+                        param_formats = [{"pageNumber": current_page_1, "pageSize": size}]
+                    elif working_format == "offset":
+                        param_formats = [{"offset": current_page_1 * size, "limit": size}]
+                    
+                    for params in param_formats:
+                        try:
+                            page_result = self._make_request("GET", "compute/instances", params=params)
+                            page_data = page_result.get("data", [])
+                            
+                            if page_data:
+                                all_instances.extend(page_data)
+                                found_more = True
+                                
+                                # Identificar qué formato funciona
+                                if working_format is None:
+                                    if "page" in params:
+                                        # Determinar si es 0-indexed o 1-indexed basándose en el valor
+                                        if current_page_0 == 1 and params["page"] == 1:
+                                            # Probamos page=1, si funciona puede ser 0-indexed o 1-indexed
+                                            # Asumimos 0-indexed primero
+                                            working_format = "page_0"
+                                        else:
+                                            working_format = "page_1"
+                                    elif "pageNumber" in params:
+                                        working_format = "pageNumber"
+                                    elif "offset" in params:
+                                        working_format = "offset"
+                                
+                                # Si obtuvimos menos de size, probablemente es la última página
+                                if len(page_data) < size:
+                                    return all_instances
+                                break  # Este formato funciona
+                        except Exception as e:
+                            continue
+                    
+                    if not found_more:
+                        break
+                    
+                    # Actualizar contadores según el formato que funciona
+                    if working_format == "page_0":
+                        current_page_0 += 1
+                    elif working_format in ["page_1", "pageNumber", "offset"]:
+                        current_page_1 += 1
+        except Exception as e:
+            if not all_instances:
+                raise e
+        
+        return all_instances
     
     def restart_instance(self, instance_id: str) -> Dict[str, Any]:
         """

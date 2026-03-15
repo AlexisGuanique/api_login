@@ -33,8 +33,6 @@
           href="{{ url_for('web.dashboard') }}">Dashboard</a>
         <a class="sideitem {% if request.endpoint == 'web.accounts' %}sideitem--active{% endif %}"
           href="{{ url_for('web.accounts') }}">Cuentas</a>
-        <a class="sideitem {% if request.endpoint == 'web.emails' %}sideitem--active{% endif %}"
-          href="{{ url_for('web.emails') }}">Emails</a>
         <a class="sideitem {% if request.endpoint == 'web.bots' %}sideitem--active{% endif %}"
           href="{{ url_for('web.bots') }}">Bots</a>
         <a class="sideitem {% if request.endpoint in ['web.proxies','web.proxy_create','web.proxy_edit'] %}sideitem--active{% endif %}"

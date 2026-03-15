@@ -51,17 +51,17 @@
           onmouseover="this.style.transform='scale(1.15)'"
           onmouseout="this.style.transform='scale(1)'"
         >
-          ▶️
+          ⬆️
           <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Abrir Ultra en bots seleccionados</span>
         </button>
         <button 
           id="close-ultra-all-bots" 
           class="global-control-btn logueador-only-btn" 
-          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; padding: 0; position: relative; color: #f59e0b;"
+          style="width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; padding: 0; position: relative; color: #ef4444;"
           onmouseover="this.style.transform='scale(1.15)'"
           onmouseout="this.style.transform='scale(1)'"
         >
-          ✕
+          ⬇️
           <span class="tooltip-text" style="visibility: hidden; width: 180px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -90px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity 0.3s;">Cerrar Ultra en bots seleccionados</span>
         </button>
         <button 
@@ -105,48 +105,6 @@
 
     <!-- Contenido de pestaña Creadores -->
     <div class="tab-content" id="tab-creadores" data-bot-type="creador">
-      <!-- Configuración de hora programada para creadores -->
-      <div class="scheduled-time-container" style="margin-bottom: 20px; padding: 15px; background: var(--card); border-radius: 6px; border: 1px solid var(--line);">
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-          <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; color: var(--text);">
-            <span>⏰ Iniciar automáticamente a las:</span>
-            <input 
-              type="time" 
-              id="scheduled-time-creators" 
-              step="60"
-              min="00:00"
-              max="23:59"
-              style="padding: 6px 10px; border: 1px solid var(--line); background: var(--input); color: var(--text); border-radius: 4px; font-size: 14px; cursor: pointer;"
-            >
-          </label>
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text);">
-            <input type="checkbox" id="enable-scheduled-start" style="cursor: pointer; width: 18px; height: 18px;">
-            <span style="font-size: 14px;">Activar programación</span>
-          </label>
-          <button 
-            id="clear-scheduled-time" 
-            class="button button--small" 
-            style="margin-left: auto;"
-          >
-            Limpiar
-          </button>
-        </div>
-        <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px; flex-wrap: wrap;">
-          <span style="font-size: 13px; color: var(--muted); font-weight: 500;">Modo de ejecución:</span>
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text);">
-            <input type="radio" name="scheduled-execution-mode" id="scheduled-mode-all" value="all" checked style="cursor: pointer; width: 16px; height: 16px;">
-            <span style="font-size: 13px;">Iniciar todos los bots</span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: var(--text);">
-            <input type="radio" name="scheduled-execution-mode" id="scheduled-mode-selected" value="selected" style="cursor: pointer; width: 16px; height: 16px;">
-            <span style="font-size: 13px;">Solo bots seleccionados</span>
-          </label>
-        </div>
-        <div id="scheduled-time-status" style="margin-top: 8px; font-size: 12px; color: var(--muted); font-style: italic;">
-          Programación desactivada
-        </div>
-      </div>
-      
       {% if creadores|length > 0 %}
         <div class="bots-list">
           {% for bot in creadores %}
@@ -215,8 +173,12 @@
                     <button class="button button--small button--primary" data-bot-id="{{ bot.id }}" data-command="start">Iniciar</button>
                     <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="stop">Detener</button>
                   {% endif %}
-                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="open_ultra" style="background-color: #10b981; color: white;">Abrir Ultra</button>
-                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
+                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="open_ultra" style="background-color: transparent; color: #10b981; display: inline-flex; align-items: center; gap: 6px;">
+                    ⬆️ Abrir Ultra
+                  </button>
+                  <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="close_ultra" style="background-color: transparent; color: #ef4444; display: inline-flex; align-items: center; gap: 6px;">
+                    ⬇️ Cerrar Ultra
+                  </button>
                   <button class="button button--small" data-bot-id="{{ bot.id }}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 {% else %}
                   <span class="muted small">Bot desconectado</span>
@@ -362,8 +324,12 @@
             if (newStatus === 'running') {
               newButtonsHTML = `
                 <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
-                <button class="button button--small" data-bot-id="${botId}" data-command="open_ultra" style="background-color: #10b981; color: white;">Abrir Ultra</button>
-                <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="open_ultra" style="background-color: transparent; color: #10b981; display: inline-flex; align-items: center; gap: 6px;">
+                  ⬆️ Abrir Ultra
+                </button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: transparent; color: #ef4444; display: inline-flex; align-items: center; gap: 6px;">
+                  ⬇️ Cerrar Ultra
+                </button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
               `;
@@ -371,8 +337,12 @@
               newButtonsHTML = `
                 <button class="button button--small button--primary" data-bot-id="${botId}" data-command="start">Iniciar</button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="stop">Detener</button>
-                <button class="button button--small" data-bot-id="${botId}" data-command="open_ultra" style="background-color: #10b981; color: white;">Abrir Ultra</button>
-                <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: #f59e0b; color: white;">Cerrar Ultra</button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="open_ultra" style="background-color: transparent; color: #10b981; display: inline-flex; align-items: center; gap: 6px;">
+                  ⬆️ Abrir Ultra
+                </button>
+                <button class="button button--small" data-bot-id="${botId}" data-command="close_ultra" style="background-color: transparent; color: #ef4444; display: inline-flex; align-items: center; gap: 6px;">
+                  ⬇️ Cerrar Ultra
+                </button>
                 <button class="button button--small" data-bot-id="${botId}" data-command="delete_cache" style="background-color: #ef4444; color: white;">Eliminar Cache</button>
                 <button class="button button--small button--danger" data-bot-id="${botId}" data-action="delete">Eliminar</button>
               `;
@@ -1089,204 +1059,6 @@
         updateGlobalButtonsTooltips();
       }, 100);
       
-      // ========== CONFIGURACIÓN DE HORA PROGRAMADA PARA CREADORES ==========
-      
-      // Clave para localStorage
-      const SCHEDULED_TIME_KEY = 'creators_scheduled_time';
-      const SCHEDULED_ENABLED_KEY = 'creators_scheduled_enabled';
-      const SCHEDULED_MODE_KEY = 'creators_scheduled_mode'; // 'all' o 'selected'
-      
-      // Elementos del DOM
-      const scheduledTimeInput = document.getElementById('scheduled-time-creators');
-      const enableScheduledCheckbox = document.getElementById('enable-scheduled-start');
-      const clearScheduledBtn = document.getElementById('clear-scheduled-time');
-      const scheduledTimeStatus = document.getElementById('scheduled-time-status');
-      const scheduledModeAll = document.getElementById('scheduled-mode-all');
-      const scheduledModeSelected = document.getElementById('scheduled-mode-selected');
-      
-      // Cargar configuración guardada
-      function loadScheduledConfig() {
-        const savedTime = localStorage.getItem(SCHEDULED_TIME_KEY);
-        const savedEnabled = localStorage.getItem(SCHEDULED_ENABLED_KEY) === 'true';
-        const savedMode = localStorage.getItem(SCHEDULED_MODE_KEY) || 'all';
-        
-        if (savedTime) {
-          scheduledTimeInput.value = savedTime;
-        }
-        
-        enableScheduledCheckbox.checked = savedEnabled;
-        
-        // Cargar modo de ejecución
-        if (savedMode === 'selected') {
-          scheduledModeSelected.checked = true;
-        } else {
-          scheduledModeAll.checked = true;
-        }
-        
-        updateScheduledStatus();
-      }
-      
-      // Guardar configuración
-      function saveScheduledConfig() {
-        if (scheduledTimeInput.value) {
-          localStorage.setItem(SCHEDULED_TIME_KEY, scheduledTimeInput.value);
-        } else {
-          localStorage.removeItem(SCHEDULED_TIME_KEY);
-        }
-        localStorage.setItem(SCHEDULED_ENABLED_KEY, enableScheduledCheckbox.checked.toString());
-        
-        // Guardar modo de ejecución
-        const selectedMode = scheduledModeSelected.checked ? 'selected' : 'all';
-        localStorage.setItem(SCHEDULED_MODE_KEY, selectedMode);
-        
-        updateScheduledStatus();
-      }
-      
-      // Actualizar estado visual
-      function updateScheduledStatus() {
-        const isEnabled = enableScheduledCheckbox.checked;
-        const time = scheduledTimeInput.value;
-        const mode = scheduledModeSelected.checked ? 'selected' : 'all';
-        const modeText = mode === 'all' ? 'todos los bots' : 'solo los bots seleccionados';
-        
-        if (isEnabled && time) {
-          const [hours, minutes] = time.split(':');
-          scheduledTimeStatus.textContent = `✅ Programación activa: Se iniciarán ${modeText} creadores automáticamente a las ${hours}:${minutes}`;
-          scheduledTimeStatus.style.color = 'var(--accent)';
-          scheduledTimeStatus.style.fontStyle = 'normal';
-        } else if (time && !isEnabled) {
-          scheduledTimeStatus.textContent = `⏸️ Programación configurada pero desactivada (${time})`;
-          scheduledTimeStatus.style.color = 'var(--muted)';
-          scheduledTimeStatus.style.fontStyle = 'italic';
-        } else {
-          scheduledTimeStatus.textContent = 'Programación desactivada';
-          scheduledTimeStatus.style.color = 'var(--muted)';
-          scheduledTimeStatus.style.fontStyle = 'italic';
-        }
-      }
-      
-      // Limpiar configuración
-      function clearScheduledConfig() {
-        scheduledTimeInput.value = '';
-        enableScheduledCheckbox.checked = false;
-        scheduledModeAll.checked = true; // Resetear a modo "todos"
-        localStorage.removeItem(SCHEDULED_TIME_KEY);
-        localStorage.removeItem(SCHEDULED_ENABLED_KEY);
-        localStorage.removeItem(SCHEDULED_MODE_KEY);
-        updateScheduledStatus();
-      }
-      
-      // Verificar si es la hora programada y ejecutar acción
-      function checkScheduledTime() {
-        const isEnabled = enableScheduledCheckbox.checked;
-        const scheduledTime = scheduledTimeInput.value;
-        const mode = scheduledModeSelected.checked ? 'selected' : 'all';
-        
-        if (!isEnabled || !scheduledTime) {
-          return;
-        }
-        
-        const now = new Date();
-        const [scheduledHours, scheduledMinutes] = scheduledTime.split(':').map(Number);
-        const currentHours = now.getHours();
-        const currentMinutes = now.getMinutes();
-        
-        // Verificar si es la hora exacta (solo una vez por minuto)
-        if (currentHours === scheduledHours && currentMinutes === scheduledMinutes) {
-          // Verificar que no se haya ejecutado ya en este minuto
-          const lastExecutionKey = 'creators_last_scheduled_execution';
-          const lastExecution = localStorage.getItem(lastExecutionKey);
-          const currentMinute = `${currentHours}:${currentMinutes}`;
-          
-          if (lastExecution !== currentMinute) {
-            // Marcar que se ejecutó en este minuto
-            localStorage.setItem(lastExecutionKey, currentMinute);
-            
-            // Ejecutar la acción según el modo seleccionado
-            const modeText = mode === 'all' ? 'todos los bots creadores' : 'los bots creadores seleccionados';
-            console.log(`⏰ Hora programada alcanzada (${scheduledTime}). Iniciando ${modeText}...`);
-            
-            // Asegurar que estamos en la pestaña de creadores y ejecutar
-            const creadoresTab = document.querySelector('[data-tab="creadores"]');
-            if (creadoresTab) {
-              // Cambiar a la pestaña de creadores si no está activa
-              const activeTab = document.querySelector('.tab-button--active');
-              if (!activeTab || activeTab.getAttribute('data-tab') !== 'creadores') {
-                creadoresTab.click();
-              }
-              
-              // Esperar un momento para que la pestaña se active, luego ejecutar
-              setTimeout(() => {
-                if (mode === 'all') {
-                  // Modo "todos": seleccionar todos los bots primero
-                  const selectAllCheckbox = document.getElementById('select-all-bots');
-                  if (selectAllCheckbox) {
-                    toggleSelectAll(true);
-                  }
-                  
-                  // Esperar un momento más para que los checkboxes se actualicen
-                  setTimeout(() => {
-                    // Ejecutar el comando de iniciar todos
-                    const startBtn = document.getElementById('start-all-bots');
-                    if (startBtn && !startBtn.disabled) {
-                      startBtn.click();
-                    }
-                  }, 100);
-                } else {
-                  // Modo "solo seleccionados": usar los bots que ya están seleccionados
-                  const activeTabContent = document.getElementById('tab-creadores');
-                  if (activeTabContent) {
-                    const selectedCheckboxes = activeTabContent.querySelectorAll('.bot-checkbox:checked');
-                    
-                    if (selectedCheckboxes.length === 0) {
-                      console.log('⚠️ No hay bots seleccionados. No se ejecutará ninguna acción.');
-                      return;
-                    }
-                    
-                    console.log(`✅ ${selectedCheckboxes.length} bot(s) seleccionado(s). Ejecutando comando...`);
-                    
-                    // Ejecutar el comando de iniciar solo los seleccionados
-                    const startBtn = document.getElementById('start-all-bots');
-                    if (startBtn && !startBtn.disabled) {
-                      startBtn.click();
-                    }
-                  }
-                }
-              }, 200);
-            }
-          }
-        }
-      }
-      
-      // Event listeners
-      if (scheduledTimeInput) {
-        scheduledTimeInput.addEventListener('change', saveScheduledConfig);
-      }
-      
-      if (enableScheduledCheckbox) {
-        enableScheduledCheckbox.addEventListener('change', saveScheduledConfig);
-      }
-      
-      if (scheduledModeAll) {
-        scheduledModeAll.addEventListener('change', saveScheduledConfig);
-      }
-      
-      if (scheduledModeSelected) {
-        scheduledModeSelected.addEventListener('change', saveScheduledConfig);
-      }
-      
-      if (clearScheduledBtn) {
-        clearScheduledBtn.addEventListener('click', clearScheduledConfig);
-      }
-      
-      // Cargar configuración al iniciar
-      loadScheduledConfig();
-      
-      // Verificar la hora programada cada minuto
-      setInterval(checkScheduledTime, 60000); // 60000ms = 1 minuto
-      
-      // También verificar inmediatamente al cargar (por si acaso)
-      checkScheduledTime();
     });
   </script>
 {% endblock %}

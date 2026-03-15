@@ -36,6 +36,22 @@
     <div class="statcard__value">{{ proxies_count }}</div>
     <div class="statcard__hint">Ver listado</div>
   </a>
+
+  <a class="statcard" href="{{ url_for('web.vps_list') }}">
+    <div class="statcard__label">VPS</div>
+    <div class="statcard__value">{{ vps_total }}</div>
+    <div class="statcard__hint">
+      {% if vps_by_cpu %}
+        {% for cpu, count in vps_by_cpu.items()|sort %}
+          <span style="display: block; margin-top: 4px; font-size: 11px; color: var(--muted);">
+            {{ cpu }} CPU: {{ count }}
+          </span>
+        {% endfor %}
+      {% else %}
+        Ver listado
+      {% endif %}
+    </div>
+  </a>
 </div>
 
 {% if proxy_stats %}
@@ -60,4 +76,107 @@
   </div>
 </div>
 {% endif %}
+
+<div class="pagehead" style="margin-top: 24px;">
+  <div>
+    <h2 class="h2">Cuentas Creadas por Hora</h2>
+    <div class="muted">Últimas 24 horas</div>
+  </div>
+</div>
+
+<section class="card" style="margin-top: 16px;">
+  <div style="position: relative; height: 400px; width: 100%;">
+    <canvas id="accountsChart"></canvas>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let accountsChart = null;
+
+function updateChartTheme() {
+  if (!accountsChart) return;
+  
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+  const textColor = isDark ? '#ffffff' : '#333333';
+  
+  accountsChart.options.plugins.legend.labels.color = textColor;
+  accountsChart.options.scales.x.grid.color = gridColor;
+  accountsChart.options.scales.x.ticks.color = textColor;
+  accountsChart.options.scales.y.grid.color = gridColor;
+  accountsChart.options.scales.y.ticks.color = textColor;
+  accountsChart.data.datasets[0].borderColor = isDark ? 'rgb(59, 130, 246)' : 'rgb(37, 99, 235)';
+  accountsChart.data.datasets[0].backgroundColor = isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(37, 99, 235, 0.1)';
+  accountsChart.update();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const ctx = document.getElementById('accountsChart');
+  if (!ctx) return;
+  
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+  const textColor = isDark ? '#ffffff' : '#333333';
+  
+  accountsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ accounts_chart_labels|tojson }},
+      datasets: [{
+        label: 'Cuentas creadas',
+        data: {{ accounts_chart_data|tojson }},
+        borderColor: isDark ? 'rgb(59, 130, 246)' : 'rgb(37, 99, 235)',
+        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(37, 99, 235, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: textColor
+          }
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: gridColor
+          },
+          ticks: {
+            color: textColor
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: textColor
+          },
+          grid: {
+            color: gridColor
+          }
+        }
+      }
+    }
+  });
+  
+  // Escuchar cambios de tema
+  const observer = new MutationObserver(updateChartTheme);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme']
+  });
+});
+</script>
 {% endblock %}

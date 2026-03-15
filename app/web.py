@@ -145,6 +145,69 @@ def dashboard():
     logueadores_count = Bot.query.filter_by(user_id=user_id, bot_type='logueador').count()
     creadores_count = Bot.query.filter_by(user_id=user_id, bot_type='creador').count()
     proxies_count = Proxy.query.filter_by(user_id=user_id).count()
+    
+    # Contar VPS por CPU
+    from sqlalchemy import func
+    vps_by_cpu = db.session.query(
+        VPS.cpu_cores,
+        func.count(VPS.id).label('count')
+    ).filter_by(user_id=user_id).group_by(VPS.cpu_cores).order_by(VPS.cpu_cores).all()
+    
+    vps_total = VPS.query.filter_by(user_id=user_id).count()
+    vps_by_cpu_dict = {str(cpu): count for cpu, count in vps_by_cpu}
+    
+    # Obtener cuentas por hora (últimas 24 horas)
+    from datetime import datetime, timedelta
+    from sqlalchemy import text
+    now = datetime.utcnow()
+    hours_ago_24 = now - timedelta(hours=24)
+    
+    # Agrupar cuentas por hora usando SQLite date functions
+    # SQLite almacena fechas como strings, necesitamos usar strftime
+    try:
+        accounts_by_hour_raw = db.session.execute(
+            text("""
+                SELECT 
+                    strftime('%Y-%m-%d %H:00:00', created_at) as hour,
+                    COUNT(*) as count
+                FROM account
+                WHERE user_id = :user_id 
+                AND datetime(created_at) >= datetime(:hours_ago)
+                GROUP BY strftime('%Y-%m-%d %H:00:00', created_at)
+                ORDER BY hour
+            """),
+            {"user_id": user_id, "hours_ago": hours_ago_24.strftime('%Y-%m-%d %H:%M:%S')}
+        ).fetchall()
+        
+        accounts_by_hour = [(row[0], row[1]) for row in accounts_by_hour_raw]
+    except Exception as e:
+        # Fallback: obtener todas las cuentas y agrupar en Python
+        accounts = Account.query.filter(
+            Account.user_id == user_id,
+            Account.created_at >= hours_ago_24
+        ).all()
+        
+        accounts_dict_temp = {}
+        for account in accounts:
+            hour_key = account.created_at.replace(minute=0, second=0, microsecond=0).strftime('%Y-%m-%d %H:00:00')
+            accounts_dict_temp[hour_key] = accounts_dict_temp.get(hour_key, 0) + 1
+        
+        accounts_by_hour = list(accounts_dict_temp.items())
+    
+    # Preparar datos para el gráfico (últimas 24 horas)
+    chart_labels = []
+    chart_data = []
+    current_hour = hours_ago_24.replace(minute=0, second=0, microsecond=0)
+    
+    # Crear un diccionario con los datos existentes
+    accounts_dict = {hour: count for hour, count in accounts_by_hour}
+    
+    # Llenar todas las horas (incluso las que no tienen cuentas)
+    for i in range(24):
+        hour_key = current_hour.strftime('%Y-%m-%d %H:00:00')
+        chart_labels.append(current_hour.strftime('%H:00'))
+        chart_data.append(accounts_dict.get(hour_key, 0))
+        current_hour += timedelta(hours=1)
 
     # Try to get stats from first active Dataimpulse proxy (ordered by created_at, limit 1)
     proxy_stats = None
@@ -177,6 +240,10 @@ def dashboard():
         creadores_count=creadores_count,
         proxies_count=proxies_count,
         proxy_stats=proxy_stats,
+        vps_total=vps_total,
+        vps_by_cpu=vps_by_cpu_dict,
+        accounts_chart_labels=chart_labels,
+        accounts_chart_data=chart_data,
     )
 
 
@@ -667,7 +734,10 @@ def vps_list():
     # Pagination + sorting
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
-    per_page = min(per_page, 100)
+    # Permitir solo valores válidos: 5, 10, 20, 50, 100, 300, 1000
+    valid_per_page = [5, 10, 20, 50, 100, 300, 1000]
+    if per_page not in valid_per_page:
+        per_page = 20
     page = max(page, 1)
 
     sort = (request.args.get("sort") or "created_at").strip()
@@ -680,6 +750,7 @@ def vps_list():
         "status": VPS.status,
         "data_center": VPS.data_center,
         "created_at": VPS.created_at,
+        "cpu_cores": VPS.cpu_cores,
     }
     sort_col = sort_map.get(sort, VPS.created_at)
 
@@ -746,7 +817,8 @@ def vps_sync():
         )
 
         result = sync_instances_to_db(user.id, service)
-        session["vps_success"] = f"Sincronización completada: {result['added']} agregados, {result['skipped']} existentes"
+        total_from_api = result.get('total_from_contabo', 0)
+        session["vps_success"] = f"Sincronización completada: {result['added']} agregados, {result['skipped']} existentes. Total desde API: {total_from_api}"
 
     except Exception as e:
         db.session.rollback()
@@ -799,6 +871,79 @@ def vps_restart(vps_id):
 
     except Exception as e:
         session["vps_error"] = f"Error al reiniciar: {str(e.response.json()['error']['message'])}"
+
+    return redirect(url_for("web.vps_list"))
+
+
+@web_bp.post("/vps/restart-batch")
+def vps_restart_batch():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    try:
+        # Obtener IDs de VPS seleccionados
+        vps_ids = request.form.getlist("vps_ids")
+        if not vps_ids:
+            session["vps_error"] = "No se seleccionaron VPS"
+            return redirect(url_for("web.vps_list"))
+
+        # Convertir a enteros
+        vps_ids = [int(vid) for vid in vps_ids]
+
+        # Verificar que todos los VPS pertenezcan al usuario
+        vps_list = VPS.query.filter(
+            VPS.id.in_(vps_ids),
+            VPS.user_id == user.id
+        ).all()
+
+        if len(vps_list) != len(vps_ids):
+            session["vps_error"] = "Algunos VPS no fueron encontrados o no pertenecen a tu cuenta"
+            return redirect(url_for("web.vps_list"))
+
+        # Obtener configuración de Contabo
+        config = ContaboConfig.query.filter_by(user_id=user.id).first()
+        if not config:
+            session["vps_error"] = "Configura Contabo primero"
+            return redirect(url_for("web.contabo_config"))
+
+        # Descifrar credenciales
+        client_secret = contabo_encrypt_service.decrypt(config.client_secret)
+        password = contabo_encrypt_service.decrypt(config.password)
+
+        if not client_secret or not password:
+            session["vps_error"] = "Error al descifrar credenciales"
+            return redirect(url_for("web.vps_list"))
+
+        # Crear servicio y reiniciar cada VPS
+        service = ContaboService(
+            client_id=config.client_id,
+            client_secret=client_secret,
+            username=config.username,
+            password=password
+        )
+
+        restarted = []
+        failed = []
+        for vps in vps_list:
+            try:
+                service.restart_instance(vps.instance_id)
+                restarted.append(vps.display_name or vps.instance_id)
+            except Exception as e:
+                failed.append(f"{vps.display_name or vps.instance_id}: {str(e)}")
+
+        if failed:
+            session["vps_error"] = f"Reiniciados: {len(restarted)}, Fallidos: {len(failed)}. {', '.join(failed[:3])}"
+        else:
+            session["vps_success"] = f"Reinicio solicitado para {len(restarted)} VPS: {', '.join(restarted[:5])}{'...' if len(restarted) > 5 else ''}"
+
+    except Exception as e:
+        session["vps_error"] = f"Error al reiniciar: {str(e)}"
 
     return redirect(url_for("web.vps_list"))
 
