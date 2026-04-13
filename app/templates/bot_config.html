@@ -90,14 +90,18 @@
       </select>
 
       <div id="custom-domain-options" {% if current_domain_mode != 'custom' %}style="display: none;"{% endif %}>
-        <label for="default_domain">Dominio por defecto (opcional)</label>
+        <label for="default_domain">Dominio por defecto global (opcional)</label>
+        <p class="muted" style="margin: 0 0 6px 0; font-size: 0.9em;">
+          Es independiente de la tabla «Dominios personalizados» de abajo. Déjalo vacío si solo usas la tabla.
+        </p>
         <input
           id="default_domain"
           type="text"
           class="input"
           name="default_domain"
-          placeholder="@gmail.com"
+          placeholder="@dominio.com"
           value="{{ domain_cfg.domain or '' }}"
+          autocomplete="off"
         />
       </div>
     </div>
@@ -119,13 +123,13 @@
     </p>
 
     <form method="POST" action="{{ url_for('web.bot_config_domain_create') }}" class="bot-config-inline-form" style="margin-bottom: 12px;">
-      <input type="text" class="input" name="domain" placeholder="@gmail.com" style="min-width: 220px;">
+      <input type="text" class="input" name="domain_new" placeholder="@ejemplo.com" style="min-width: 220px;">
       <label style="display: flex; align-items: center; gap: 6px;">
-        <input type="checkbox" name="fill_domain">
+        <input type="checkbox" name="fill_domain_new">
         Rellenar
       </label>
       <label style="display: flex; align-items: center; gap: 6px;">
-        <input type="checkbox" name="is_active" checked>
+        <input type="checkbox" name="is_active_new" checked>
         Activo
       </label>
       <button type="submit" class="button button--primary">Agregar dominio</button>
@@ -146,13 +150,13 @@
           {% for row in domain_entries %}
           <tr>
             <td>
-              <input type="text" class="input" name="domain" value="{{ row.domain }}" style="min-width: 220px;" form="domain-form-{{ row.id }}">
+              <input type="text" class="input" name="domain_update_{{ row.id }}" value="{{ row.domain }}" style="min-width: 220px;" form="domain-form-{{ row.id }}" autocomplete="off">
             </td>
             <td>
-              <input type="checkbox" name="fill_domain" {% if row.fill_domain %}checked{% endif %} form="domain-form-{{ row.id }}">
+              <input type="checkbox" name="fill_domain_update_{{ row.id }}" {% if row.fill_domain %}checked{% endif %} form="domain-form-{{ row.id }}">
             </td>
             <td>
-              <input type="checkbox" name="is_active" {% if row.is_active %}checked{% endif %} form="domain-form-{{ row.id }}">
+              <input type="checkbox" name="is_active_update_{{ row.id }}" {% if row.is_active %}checked{% endif %} form="domain-form-{{ row.id }}">
             </td>
             <td class="bot-config-actions-cell">
               <form id="domain-form-{{ row.id }}" method="POST" action="{{ url_for('web.bot_config_domain_update', domain_id=row.id) }}">

@@ -791,7 +791,7 @@ def bot_config_domain_create():
         session.clear()
         return redirect(url_for("web.login"))
 
-    domain_text = _normalize_domain_text(request.form.get("domain") or "")
+    domain_text = _normalize_domain_text(request.form.get("domain_new") or request.form.get("domain") or "")
     if not domain_text:
         return _render_bot_config_page(user, error="Debes indicar un dominio válido.", status_code=400)
 
@@ -802,8 +802,8 @@ def bot_config_domain_create():
     db.session.add(BotDomainEntry(
         user_id=user.id,
         domain=domain_text,
-        fill_domain=request.form.get("fill_domain") == "on",
-        is_active=request.form.get("is_active") == "on",
+        fill_domain=request.form.get("fill_domain_new") == "on" or request.form.get("fill_domain") == "on",
+        is_active=request.form.get("is_active_new") == "on" or request.form.get("is_active") == "on",
     ))
     db.session.commit()
     return _render_bot_config_page(user, success="Dominio agregado en servidor.")
@@ -823,7 +823,9 @@ def bot_config_domain_update(domain_id: int):
     if not row:
         return _render_bot_config_page(user, error="Dominio no encontrado.", status_code=404)
 
-    domain_text = _normalize_domain_text(request.form.get("domain") or "")
+    domain_text = _normalize_domain_text(
+        request.form.get(f"domain_update_{domain_id}") or request.form.get("domain") or ""
+    )
     if not domain_text:
         return _render_bot_config_page(user, error="Debes indicar un dominio válido.", status_code=400)
 
@@ -836,8 +838,8 @@ def bot_config_domain_update(domain_id: int):
         return _render_bot_config_page(user, error="Ese dominio ya existe en otro registro.", status_code=400)
 
     row.domain = domain_text
-    row.fill_domain = request.form.get("fill_domain") == "on"
-    row.is_active = request.form.get("is_active") == "on"
+    row.fill_domain = request.form.get(f"fill_domain_update_{domain_id}") == "on"
+    row.is_active = request.form.get(f"is_active_update_{domain_id}") == "on"
     db.session.commit()
     return _render_bot_config_page(user, success="Dominio actualizado.")
 

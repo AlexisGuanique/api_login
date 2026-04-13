@@ -451,70 +451,78 @@ def register_socketio_handlers(socketio):
                 )
                 db.session.add(global_cfg)
 
-            normalized_domains = []
-            seen_domains = set()
-            for row in payload_domains:
-                if not isinstance(row, dict):
-                    continue
-                domain_name = str(row.get('domain') or '').strip()
-                if not domain_name:
-                    continue
-                if not domain_name.startswith('@'):
-                    domain_name = f"@{domain_name}"
-                key = domain_name.lower()
-                if key in seen_domains:
-                    continue
-                seen_domains.add(key)
-                normalized_domains.append({
-                    'domain': domain_name,
-                    'fill_domain': bool(row.get('fill_domain', False)),
-                    'is_active': bool(row.get('is_active', True)),
-                })
+            # Solo sembrar dominios desde el bot si el usuario aún no tiene filas en el panel.
+            # Si ya hay dominios en servidor (editados/guardados en la web), no pisar:
+            # si no, el bot volvería a insertar p. ej. @gmail.com y anularía Rellenar/Activo u otros dominios.
+            existing_domain_count = BotDomainEntry.query.filter_by(user_id=bot.user_id).count()
+            if existing_domain_count == 0:
+                normalized_domains = []
+                seen_domains = set()
+                for row in payload_domains:
+                    if not isinstance(row, dict):
+                        continue
+                    domain_name = str(row.get('domain') or '').strip()
+                    if not domain_name:
+                        continue
+                    if not domain_name.startswith('@'):
+                        domain_name = f"@{domain_name}"
+                    key = domain_name.lower()
+                    if key in seen_domains:
+                        continue
+                    seen_domains.add(key)
+                    normalized_domains.append({
+                        'domain': domain_name,
+                        'fill_domain': bool(row.get('fill_domain', False)),
+                        'is_active': bool(row.get('is_active', True)),
+                    })
 
-            for row in normalized_domains:
-                stmt = sqlite_insert(BotDomainEntry).values(
-                    user_id=bot.user_id,
-                    domain=row['domain'],
-                    fill_domain=row['fill_domain'],
-                    is_active=row['is_active'],
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=['user_id', 'domain'],
-                    set_={
-                        'fill_domain': row['fill_domain'],
-                        'is_active': row['is_active'],
-                    }
-                )
-                db.session.execute(stmt)
+                for row in normalized_domains:
+                    stmt = sqlite_insert(BotDomainEntry).values(
+                        user_id=bot.user_id,
+                        domain=row['domain'],
+                        fill_domain=row['fill_domain'],
+                        is_active=row['is_active'],
+                    )
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=['user_id', 'domain'],
+                        set_={
+                            'fill_domain': row['fill_domain'],
+                            'is_active': row['is_active'],
+                        }
+                    )
+                    db.session.execute(stmt)
 
-            normalized_tlds = []
-            seen_tlds = set()
-            for index, row in enumerate(payload_tlds):
-                value = row.get('tld') if isinstance(row, dict) else row
-                tld = str(value or '').strip().lstrip('.').lower()
-                if not tld:
-                    continue
-                if tld in seen_tlds:
-                    continue
-                seen_tlds.add(tld)
-                normalized_tlds.append({'tld': tld, 'sort_order': index})
+            existing_tld_count = BotRandomTldEntry.query.filter_by(user_id=bot.user_id).count()
+            if existing_tld_count == 0:
+                normalized_tlds = []
+                seen_tlds = set()
+                for index, row in enumerate(payload_tlds):
+                    value = row.get('tld') if isinstance(row, dict) else row
+                    tld = str(value or '').strip().lstrip('.').lower()
+                    if not tld:
+                        continue
+                    if tld in seen_tlds:
+                        continue
+                    seen_tlds.add(tld)
+                    normalized_tlds.append({'tld': tld, 'sort_order': index})
 
-            for row in normalized_tlds:
-                stmt = sqlite_insert(BotRandomTldEntry).values(
-                    user_id=bot.user_id,
-                    tld=row['tld'],
-                    sort_order=row['sort_order'],
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=['user_id', 'tld'],
-                    set_={'sort_order': row['sort_order']}
-                )
-                db.session.execute(stmt)
+                for row in normalized_tlds:
+                    stmt = sqlite_insert(BotRandomTldEntry).values(
+                        user_id=bot.user_id,
+                        tld=row['tld'],
+                        sort_order=row['sort_order'],
+                    )
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=['user_id', 'tld'],
+                        set_={'sort_order': row['sort_order']}
+                    )
+                    db.session.execute(stmt)
 
             db.session.commit()
             print(
                 f"✅ Config de dominios sincronizada user_id={bot.user_id}: "
-                f"{len(normalized_domains)} dominios, {len(normalized_tlds)} tlds"
+                f"dominios_bot={'omitidos (ya hay tabla en servidor)' if existing_domain_count else 'aplicados'}, "
+                f"tlds_bot={'omitidos (ya hay TLDs en servidor)' if existing_tld_count else 'aplicados'}"
             )
         except Exception as e:
             print(f"❌ Error en sync_domain_config: {e}")
