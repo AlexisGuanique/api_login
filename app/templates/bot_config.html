@@ -46,10 +46,6 @@
       {% endif %}
     </fieldset>
 
-    <div>
-      <button type="submit" class="button button--primary">Guardar configuración global</button>
-    </div>
-
     <div style="margin-top: 8px;">
       <h4 style="margin: 0 0 8px 0;">User-Agent por navegador (servidor)</h4>
       <p class="muted" style="margin-top: 0;">
@@ -81,40 +77,39 @@
       {% endif %}
     </div>
 
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
+      <h3 style="margin: 0 0 8px 0;">Configuración global de dominios</h3>
+      <p class="muted" style="margin-top: 0;">
+        Modo de dominio y opciones asociadas. Se guardan junto con navegadores y User-Agent al pulsar el botón de abajo.
+      </p>
+      <label for="domain_mode">Modo de dominio</label>
+      <select id="domain_mode" name="domain_mode" class="input">
+        <option value="33mail" {% if current_domain_mode == '33mail' %}selected{% endif %}>Usar 33mail</option>
+        <option value="random" {% if current_domain_mode == 'random' %}selected{% endif %}>Dominios aleatorios</option>
+        <option value="custom" {% if current_domain_mode == 'custom' %}selected{% endif %}>Tabla de dominios personalizados</option>
+      </select>
+
+      <div id="custom-domain-options" {% if current_domain_mode != 'custom' %}style="display: none;"{% endif %}>
+        <label for="default_domain">Dominio por defecto (opcional)</label>
+        <input
+          id="default_domain"
+          type="text"
+          class="input"
+          name="default_domain"
+          placeholder="@gmail.com"
+          value="{{ domain_cfg.domain or '' }}"
+        />
+      </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <button type="submit" class="button button--primary">Guardar configuración global</button>
+    </div>
+
   </form>
 </section>
 
 <section class="card" style="margin-top: 16px;">
-  <div class="card__header">
-    <h3 style="margin: 0;">Configuración global de dominios</h3>
-  </div>
-  <p class="muted" style="margin-top: 0;">
-    Este bloque es global para todos los navegadores.
-  </p>
-  <form id="domain-settings-form" method="POST" action="{{ url_for('web.bot_config_domain_settings_post') }}" style="display: grid; gap: 8px; margin-bottom: 14px;">
-    <label for="domain_mode">Modo de dominio</label>
-    <select id="domain_mode" name="domain_mode" class="input">
-      <option value="33mail" {% if current_domain_mode == '33mail' %}selected{% endif %}>Usar 33mail</option>
-      <option value="random" {% if current_domain_mode == 'random' %}selected{% endif %}>Dominios aleatorios</option>
-      <option value="custom" {% if current_domain_mode == 'custom' %}selected{% endif %}>Tabla de dominios personalizados</option>
-    </select>
-
-    <div id="custom-domain-options" {% if current_domain_mode != 'custom' %}style="display: none;"{% endif %}>
-      <label for="default_domain">Dominio por defecto (opcional)</label>
-      <input
-        id="default_domain"
-        type="text"
-        class="input"
-        name="default_domain"
-        placeholder="@gmail.com"
-        value="{{ domain_cfg.domain or '' }}"
-      />
-    </div>
-    <div>
-      <button type="submit" class="button button--primary">Guardar configuración global de dominios</button>
-    </div>
-  </form>
-
   <div id="custom-domains-section" {% if current_domain_mode != 'custom' %}style="display: none;"{% endif %}>
     <div class="card__header" style="padding-left: 0; padding-right: 0;">
       <h3 style="margin: 0;">Dominios personalizados</h3>
@@ -183,7 +178,7 @@
     <h3 style="margin: 0;">Terminaciones para dominios aleatorios (TLD)</h3>
   </div>
   <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-    <input type="checkbox" name="random_fill_domain" form="domain-settings-form" {% if domain_cfg.fill_domain %}checked{% endif %}>
+    <input type="checkbox" name="random_fill_domain" form="bot-config-form" {% if domain_cfg.fill_domain %}checked{% endif %}>
     Rellenar subdominio (palabra + 3 dígitos aleatorios del 0 al 9)
   </label>
   <p class="muted" style="margin-top: 0;">

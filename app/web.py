@@ -133,6 +133,30 @@ def _normalize_tld_text(value: str) -> str:
     return (value or "").strip().lstrip(".").lower()
 
 
+def _apply_domain_global_from_form(user: User) -> None:
+    """Actualiza BotDomainGlobalConfig desde request.form (sin commit)."""
+    domain_mode = (request.form.get("domain_mode") or "33mail").strip()
+    random_fill_domain = request.form.get("random_fill_domain") == "on"
+    default_domain = _normalize_domain_text(request.form.get("default_domain") or "")
+
+    domain_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user.id).first()
+    if not domain_cfg:
+        domain_cfg = BotDomainGlobalConfig(user_id=user.id)
+        db.session.add(domain_cfg)
+
+    if domain_mode == "random":
+        domain_cfg.is33mail = False
+        domain_cfg.random_domains = True
+    elif domain_mode == "custom":
+        domain_cfg.is33mail = False
+        domain_cfg.random_domains = False
+    else:
+        domain_cfg.is33mail = True
+        domain_cfg.random_domains = False
+    domain_cfg.fill_domain = random_fill_domain
+    domain_cfg.domain = default_domain or None
+
+
 def _get_domain_config_bundle(user_id: int):
     global_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user_id).first()
     domain_entries = (
@@ -646,6 +670,10 @@ def bot_config_post():
         browser_config = BotGlobalConfig(user_id=user.id)
         db.session.add(browser_config)
 
+    # Formulario unificado: modo de dominio va en el mismo POST que navegadores/UA
+    if request.form.get("domain_mode") is not None:
+        _apply_domain_global_from_form(user)
+
     browser_options = _get_browser_options_for_user(user.id)
     raw_selected = request.form.getlist("preferred_browsers")
     seen_lower: set[str] = set()
@@ -724,10 +752,15 @@ def bot_config_post():
                 db.session.delete(existing)
 
     db.session.commit()
+    success_msg = (
+        "Configuración global guardada (navegadores, User-Agent y modo de dominios)."
+        if request.form.get("domain_mode") is not None
+        else "Configuración de navegador(es) y User-Agent guardada."
+    )
     return _render_bot_config_page(
         user,
         selected_browsers_override=get_preferred_browsers_list(browser_config),
-        success="Configuración de navegador(es) y User-Agent guardada.",
+        success=success_msg,
     )
 
 
@@ -742,26 +775,7 @@ def bot_config_domain_settings_post():
         session.clear()
         return redirect(url_for("web.login"))
 
-    domain_mode = (request.form.get("domain_mode") or "33mail").strip()
-    random_fill_domain = request.form.get("random_fill_domain") == "on"
-    default_domain = _normalize_domain_text(request.form.get("default_domain") or "")
-
-    domain_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user.id).first()
-    if not domain_cfg:
-        domain_cfg = BotDomainGlobalConfig(user_id=user.id)
-        db.session.add(domain_cfg)
-
-    if domain_mode == "random":
-        domain_cfg.is33mail = False
-        domain_cfg.random_domains = True
-    elif domain_mode == "custom":
-        domain_cfg.is33mail = False
-        domain_cfg.random_domains = False
-    else:
-        domain_cfg.is33mail = True
-        domain_cfg.random_domains = False
-    domain_cfg.fill_domain = random_fill_domain
-    domain_cfg.domain = default_domain or None
+    _apply_domain_global_from_form(user)
 
     db.session.commit()
     return _render_bot_config_page(user, success="Configuración global de dominios guardada.")
