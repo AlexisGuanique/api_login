@@ -7,6 +7,7 @@ from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
 from app.utils.auth import token_required, session_or_token_required
+from app.utils.bot_preferences import get_preferred_browsers_list
 
 bots_bp = Blueprint('bots', __name__, url_prefix='/api/bots')
 
@@ -136,14 +137,17 @@ def send_command(bot_id):
                 }), 200
         
         global_config = BotGlobalConfig.query.filter_by(user_id=request.current_user.id).first()
-        preferred_browser = global_config.preferred_browser if global_config else None
-        user_agent = None
-        if preferred_browser:
+        preferred_browsers = get_preferred_browsers_list(global_config)
+        preferred_browser = preferred_browsers[0] if preferred_browsers else None
+        remote_user_agents: dict[str, str] = {}
+        for name in preferred_browsers:
             ua_cfg = BotBrowserUserAgent.query.filter_by(
                 user_id=request.current_user.id,
-                browser_name=preferred_browser
+                browser_name=name,
             ).first()
-            user_agent = ua_cfg.user_agent if ua_cfg else None
+            if ua_cfg and (ua_cfg.user_agent or "").strip():
+                remote_user_agents[name] = (ua_cfg.user_agent or "").strip()
+        user_agent = remote_user_agents.get(preferred_browser) if preferred_browser else None
 
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
@@ -151,7 +155,9 @@ def send_command(bot_id):
             'command': command,
             'bot_id': bot_id,
             'preferred_browser': preferred_browser,
+            'preferred_browsers': preferred_browsers,
             'remote_user_agent': user_agent,
+            'remote_user_agents': remote_user_agents,
             'remote_domain_config': _build_remote_domain_config(request.current_user.id),
         }, room=bot.socket_id)
         

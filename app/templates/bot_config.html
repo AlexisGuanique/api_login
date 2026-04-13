@@ -19,22 +19,32 @@
   {% set current_domain_mode = '33mail' if domain_cfg.is33mail else ('random' if domain_cfg.random_domains else 'custom') %}
 
   <form id="bot-config-form" method="POST" action="{{ url_for('web.bot_config_post') }}" style="display: grid; gap: 12px;">
-    <label for="preferred_browser">Navegador global para ejecutar bots</label>
-    <select id="preferred_browser" name="preferred_browser" class="input">
-      <option value="">Sin selección (usar configuración local del bot)</option>
-      {% for browser_name in browser_options %}
-      <option value="{{ browser_name }}" {% if selected_browser == browser_name %}selected{% endif %}>
-        {{ browser_name }}
-      </option>
-      {% endfor %}
-    </select>
-
-    {% if not browser_options %}
-    <div class="muted">
-      Aún no hay navegadores sincronizados desde tus bots de `confirmbot`.
-      Conecta al menos un bot para cargar el catálogo.
-    </div>
-    {% endif %}
+    <fieldset style="border: 0; padding: 0; margin: 0;">
+      <legend class="muted" style="padding: 0; margin-bottom: 8px;">Navegadores globales para ejecutar bots</legend>
+      <p class="muted" style="margin-top: 0;">
+        Marca uno o varios. El bot activará solo esos perfiles al recibir el comando desde el servidor.
+      </p>
+      {% if not browser_options %}
+      <div class="muted">
+        Aún no hay navegadores sincronizados desde tus bots de `confirmbot`.
+        Conecta al menos un bot para cargar el catálogo.
+      </div>
+      {% else %}
+      <div style="display: grid; gap: 8px;">
+        {% for browser_name in browser_options %}
+        <label style="display: flex; align-items: center; gap: 8px;">
+          <input
+            type="checkbox"
+            name="preferred_browsers"
+            value="{{ browser_name }}"
+            {% if browser_name in selected_browsers %}checked{% endif %}
+          >
+          <span>{{ browser_name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </fieldset>
 
     <div>
       <button type="submit" class="button button--primary">Guardar configuración global</button>
@@ -43,31 +53,31 @@
     <div style="margin-top: 8px;">
       <h4 style="margin: 0 0 8px 0;">User-Agent por navegador (servidor)</h4>
       <p class="muted" style="margin-top: 0;">
-        Define aquí solo el User-Agent del navegador global seleccionado.
+        Configura el User-Agent de cada navegador que vayas a marcar como global. Los demás puedes dejarlos vacíos.
       </p>
-      {% if missing_ua_browsers and selected_browser %}
+      {% if missing_ua_browsers and selected_browsers %}
       <div class="muted" style="margin-bottom: 10px;">
-        Advertencia: hay navegadores sin User-Agent configurado ({{ missing_ua_browsers|join(', ') }}).
-        Puedes configurar solo los que vayas a usar.
+        Advertencia: hay navegadores globales marcados sin User-Agent: {{ missing_ua_browsers|join(', ') }}.
       </div>
       {% endif %}
-      {% if selected_browser %}
-      <div style="display: grid; gap: 8px;">
-        <div class="ua-row" data-browser-name="{{ selected_browser }}" style="display: grid; gap: 6px;">
-          <label id="selected-browser-label">{{ selected_browser }}</label>
-          <input id="ua-browser-name-hidden" type="hidden" name="ua_browser_name" value="{{ selected_browser }}">
+      {% if browser_options %}
+      <div style="display: grid; gap: 12px;">
+        {% for browser_name in browser_options %}
+        <div class="ua-row" style="display: grid; gap: 6px;">
+          <label for="ua_{{ loop.index0 }}">{{ browser_name }}</label>
           <input
-            id="ua-value-input"
+            id="ua_{{ loop.index0 }}"
             type="text"
-            name="ua_value"
+            name="ua_{{ loop.index0 }}"
             class="input"
-            placeholder="User-Agent para {{ selected_browser }}"
-            value="{{ selected_user_agent or '' }}"
+            placeholder="User-Agent para {{ browser_name }}"
+            value="{{ user_agent_map.get(browser_name, '') or '' }}"
           />
         </div>
+        {% endfor %}
       </div>
       {% else %}
-      <div class="muted">Selecciona primero un navegador global para configurar su User-Agent.</div>
+      <div class="muted">Sin catálogo de navegadores aún.</div>
       {% endif %}
     </div>
 
@@ -223,18 +233,18 @@
     <h3 style="margin: 0;">Compatibilidad por bot</h3>
   </div>
 
-  {% if selected_browser %}
+  {% if selected_browsers %}
   <div style="margin-bottom: 12px;">
-    <strong>Navegador global seleccionado:</strong> {{ selected_browser }}
+    <strong>Navegadores globales marcados:</strong> {{ selected_browsers|join(', ') }}
   </div>
   {% if not selected_exists_in_any_bot %}
   <div class="alert alert--error" style="margin-bottom: 12px;">
-    El navegador global seleccionado no existe en ningún bot sincronizado actualmente.
+    Alguno de los navegadores globales no figura en el catálogo agregado por tus bots (revisa la sincronización).
   </div>
   {% endif %}
   {% else %}
   <div class="muted" style="margin-bottom: 12px;">
-    No hay navegador global seleccionado.
+    No hay navegadores globales seleccionados (se usará la configuración local de cada bot).
   </div>
   {% endif %}
 
@@ -269,9 +279,9 @@
           </td>
           <td>{{ row.last_sync|fmt_dt if row.last_sync else 'Sin sync' }}</td>
           <td>
-            {% if selected_browser and row.missing_selected %}
+            {% if selected_browsers and row.missing_selected %}
             <span class="status-badge status-badge--stopped">Desalineado</span>
-            {% elif selected_browser %}
+            {% elif selected_browsers %}
             <span class="status-badge status-badge--running">Alineado</span>
             {% else %}
             <span class="muted">Sin navegador global</span>
@@ -289,29 +299,6 @@
   </div>
   {% endif %}
 </section>
-<script>
-  (function () {
-    const browserSelect = document.getElementById('preferred_browser');
-    const browserLabel = document.getElementById('selected-browser-label');
-    const hiddenBrowserName = document.getElementById('ua-browser-name-hidden');
-    const uaInput = document.getElementById('ua-value-input');
-    if (!browserSelect || !browserLabel || !hiddenBrowserName || !uaInput) return;
-
-    const userAgentMap = {{ user_agent_map|tojson }};
-
-    function syncUserAgentField() {
-      const selectedBrowser = (browserSelect.value || '').trim();
-      browserLabel.textContent = selectedBrowser || 'Sin navegador seleccionado';
-      hiddenBrowserName.value = selectedBrowser;
-      uaInput.placeholder = selectedBrowser
-        ? `User-Agent para ${selectedBrowser}`
-        : 'Selecciona un navegador global primero';
-      uaInput.value = selectedBrowser ? (userAgentMap[selectedBrowser] || '') : '';
-    }
-
-    browserSelect.addEventListener('change', syncUserAgentField);
-  })();
-</script>
 <script>
   (function () {
     const modeSelect = document.getElementById('domain_mode');
