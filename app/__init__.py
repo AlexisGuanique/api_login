@@ -23,6 +23,13 @@ from app.models.bot import Bot
 from app.models.proxy import Proxy
 from app.models.vps import VPS
 from app.models.contabo_config import ContaboConfig
+from app.models.bot_global_config import BotGlobalConfig
+from app.models.bot_browser_catalog import BotBrowserCatalog
+from app.models.bot_browser_presence import BotBrowserPresence
+from app.models.bot_browser_user_agent import BotBrowserUserAgent
+from app.models.bot_domain_global_config import BotDomainGlobalConfig
+from app.models.bot_domain_entry import BotDomainEntry
+from app.models.bot_random_tld_entry import BotRandomTldEntry
 
 load_dotenv()
 
@@ -42,6 +49,11 @@ def create_app():
 
     # Configuración de SQLAlchemy
     database_path = os.getenv('DATABASE_PATH', 'app/database')
+    # En Git Bash sobre Windows, una ruta estilo '/api_login/...' puede resolver
+    # hacia 'C:/Program Files/Git/...'. Forzamos una ruta local válida del proyecto.
+    if os.name == 'nt' and database_path.startswith('/'):
+        print(f"⚠️ DATABASE_PATH inválido para Windows: {database_path}. Usando 'app/database'.")
+        database_path = 'app/database'
     # Asegurar que la ruta sea absoluta
     if not os.path.isabs(database_path):
         database_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), database_path)

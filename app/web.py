@@ -14,6 +14,12 @@ from app.models.bot import Bot
 from app.models.proxy import Proxy, ProxyKind
 from app.models.vps import VPS
 from app.models.contabo_config import ContaboConfig
+from app.models.bot_global_config import BotGlobalConfig
+from app.models.bot_browser_presence import BotBrowserPresence
+from app.models.bot_browser_user_agent import BotBrowserUserAgent
+from app.models.bot_domain_global_config import BotDomainGlobalConfig
+from app.models.bot_domain_entry import BotDomainEntry
+from app.models.bot_random_tld_entry import BotRandomTldEntry
 from app.services.encrypt import encrypt_service
 from app.services.proxy_providers import DataimpulseProvider
 from app.services.contabo import ContaboService, sync_instances_to_db
@@ -21,6 +27,178 @@ from app.services.contabo_encrypt import contabo_encrypt_service
 
 
 web_bp = Blueprint("web", __name__)
+
+
+def _get_browser_options_for_user(user_id: int) -> list[str]:
+    """
+    Devuelve opciones de navegador para configuración global.
+    Regla: usar la intersección de navegadores entre bots conectados.
+    Si no hay bots conectados, usar la unión histórica del usuario.
+    """
+    connected_bots = (
+        Bot.query
+        .filter_by(user_id=user_id)
+        .filter_by(bot_type='creador')
+        .filter((Bot.socket_id.isnot(None)) & (Bot.socket_id != ''))
+        .all()
+    )
+    connected_bot_ids = [b.id for b in connected_bots]
+
+    if connected_bot_ids:
+        rows = BotBrowserPresence.query.filter(BotBrowserPresence.bot_id.in_(connected_bot_ids)).all()
+        by_bot = {bot_id: set() for bot_id in connected_bot_ids}
+        for row in rows:
+            by_bot.setdefault(row.bot_id, set()).add(row.browser_name)
+
+        sets = list(by_bot.values())
+        common = set.intersection(*sets) if sets else set()
+        return sorted(common, key=lambda x: x.lower())
+
+    # Fallback cuando no hay bots conectados: unión histórica
+    rows = BotBrowserPresence.query.filter_by(user_id=user_id).all()
+    union_names = {row.browser_name for row in rows}
+    return sorted(union_names, key=lambda x: x.lower())
+
+
+def _build_bot_compatibility_matrix(user_id: int, selected_browser: str | None):
+    """
+    Construye datos de compatibilidad por bot (bot x navegador).
+    """
+    bots = (
+        Bot.query
+        .filter_by(user_id=user_id, bot_type='creador')
+        .order_by(Bot.last_seen.desc())
+        .all()
+    )
+    presence_rows = BotBrowserPresence.query.filter_by(user_id=user_id).all()
+
+    by_bot_names: dict[int, set[str]] = {}
+    by_bot_last_sync: dict[int, datetime] = {}
+    all_names: set[str] = set()
+
+    for row in presence_rows:
+        by_bot_names.setdefault(row.bot_id, set()).add(row.browser_name)
+        all_names.add(row.browser_name)
+        current_last_sync = by_bot_last_sync.get(row.bot_id)
+        if current_last_sync is None or row.last_seen > current_last_sync:
+            by_bot_last_sync[row.bot_id] = row.last_seen
+
+    browser_headers = sorted(all_names, key=lambda x: x.lower())
+    selected_exists_in_any_bot = bool(selected_browser) and selected_browser in all_names
+    rows = []
+    for bot in bots:
+        bot_names = by_bot_names.get(bot.id, set())
+        rows.append({
+            "bot": bot,
+            "browser_names": bot_names,
+            "last_sync": by_bot_last_sync.get(bot.id),
+            "missing_selected": bool(selected_browser) and selected_browser not in bot_names,
+        })
+
+    return browser_headers, rows, selected_exists_in_any_bot
+
+
+def _get_user_agent_map(user_id: int, browser_names: list[str]) -> dict[str, str]:
+    if not browser_names:
+        return {}
+    rows = (
+        BotBrowserUserAgent.query
+        .filter_by(user_id=user_id)
+        .filter(BotBrowserUserAgent.browser_name.in_(browser_names))
+        .all()
+    )
+    return {row.browser_name: row.user_agent for row in rows}
+
+
+def _get_missing_user_agent_browsers(browser_names: list[str], user_agent_map: dict[str, str]) -> list[str]:
+    missing = []
+    for name in browser_names:
+        if not (user_agent_map.get(name) or "").strip():
+            missing.append(name)
+    return missing
+
+
+def _normalize_domain_text(value: str) -> str:
+    domain = (value or "").strip()
+    if not domain:
+        return ""
+    return domain if domain.startswith("@") else f"@{domain}"
+
+
+def _normalize_tld_text(value: str) -> str:
+    return (value or "").strip().lstrip(".").lower()
+
+
+def _get_domain_config_bundle(user_id: int):
+    global_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user_id).first()
+    domain_entries = (
+        BotDomainEntry.query
+        .filter_by(user_id=user_id)
+        .order_by(BotDomainEntry.id.asc())
+        .all()
+    )
+    random_tld_entries = (
+        BotRandomTldEntry.query
+        .filter_by(user_id=user_id)
+        .order_by(BotRandomTldEntry.sort_order.asc(), BotRandomTldEntry.id.asc())
+        .all()
+    )
+    if not global_cfg:
+        global_cfg = BotDomainGlobalConfig(
+            user_id=user_id,
+            is33mail=True,
+            random_domains=False,
+            fill_domain=False,
+            domain=None,
+        )
+    return global_cfg, domain_entries, random_tld_entries
+
+
+def _render_bot_config_page(
+    user: User,
+    *,
+    error: str | None = None,
+    success: str | None = None,
+    selected_browser_override: str | None = None,
+    user_agent_map_override: dict[str, str] | None = None,
+    selected_user_agent_override: str | None = None,
+    status_code: int = 200,
+):
+    browser_config = BotGlobalConfig.query.filter_by(user_id=user.id).first()
+    selected_browser = selected_browser_override if selected_browser_override is not None else (
+        browser_config.preferred_browser if browser_config else None
+    )
+    browser_options = _get_browser_options_for_user(user.id)
+    matrix_headers, matrix_rows, selected_exists_in_any_bot = _build_bot_compatibility_matrix(user.id, selected_browser)
+    user_agent_map = _get_user_agent_map(user.id, matrix_headers)
+    if user_agent_map_override:
+        user_agent_map.update(user_agent_map_override)
+    missing_ua_browsers = _get_missing_user_agent_browsers(matrix_headers, user_agent_map)
+    selected_user_agent = (
+        selected_user_agent_override
+        if selected_user_agent_override is not None
+        else (user_agent_map.get(selected_browser, "") if selected_browser else "")
+    )
+
+    domain_cfg, domain_entries, random_tld_entries = _get_domain_config_bundle(user.id)
+
+    return render_template(
+        "bot_config.html",
+        user=user,
+        selected_browser=selected_browser,
+        browser_options=browser_options,
+        matrix_headers=matrix_headers,
+        matrix_rows=matrix_rows,
+        selected_exists_in_any_bot=selected_exists_in_any_bot,
+        user_agent_map=user_agent_map,
+        missing_ua_browsers=missing_ua_browsers,
+        selected_user_agent=selected_user_agent,
+        domain_cfg=domain_cfg,
+        domain_entries=domain_entries,
+        random_tld_entries=random_tld_entries,
+        error=error,
+        success=success,
+    ), status_code
 
 @web_bp.app_template_filter("fmt_dt")
 def fmt_dt(value) -> str:
@@ -435,6 +613,275 @@ def bots():
         user=user,
         bots=[b.to_dict() for b in bots_list],
     )
+
+
+@web_bp.get("/bot-config")
+def bot_config():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    return _render_bot_config_page(user)
+
+
+@web_bp.post("/bot-config")
+def bot_config_post():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    browser_config = BotGlobalConfig.query.filter_by(user_id=user.id).first()
+    if not browser_config:
+        browser_config = BotGlobalConfig(user_id=user.id)
+        db.session.add(browser_config)
+    selected_browser = (request.form.get("preferred_browser") or "").strip()
+    ua_browser_name = (request.form.get("ua_browser_name") or "").strip()
+    ua_value = (request.form.get("ua_value") or "").strip()
+    browser_options = _get_browser_options_for_user(user.id)
+    if selected_browser and selected_browser not in browser_options:
+        return _render_bot_config_page(
+            user,
+            error="El navegador seleccionado no existe en el catálogo sincronizado de tus bots.",
+            selected_browser_override=selected_browser,
+            status_code=400,
+        )
+    if selected_browser and ua_browser_name == selected_browser and not ua_value:
+        return _render_bot_config_page(
+            user,
+            error="Debes configurar User-Agent para el navegador global seleccionado antes de guardar.",
+            selected_browser_override=selected_browser,
+            status_code=400,
+        )
+
+    browser_config.preferred_browser = selected_browser or None
+
+    # Guardar solo el User-Agent del navegador visible/seleccionado.
+    if ua_browser_name:
+        existing = BotBrowserUserAgent.query.filter_by(
+            user_id=user.id,
+            browser_name=ua_browser_name
+        ).first()
+
+        if ua_value:
+            if existing:
+                existing.user_agent = ua_value
+            else:
+                db.session.add(
+                    BotBrowserUserAgent(
+                        user_id=user.id,
+                        browser_name=ua_browser_name,
+                        user_agent=ua_value,
+                    )
+                )
+        else:
+            if existing:
+                db.session.delete(existing)
+
+    db.session.commit()
+    return _render_bot_config_page(
+        user,
+        selected_browser_override=browser_config.preferred_browser,
+        success="Configuración de navegador/User-Agent guardada.",
+    )
+
+
+@web_bp.post("/bot-config/domain-settings")
+def bot_config_domain_settings_post():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    domain_mode = (request.form.get("domain_mode") or "33mail").strip()
+    random_fill_domain = request.form.get("random_fill_domain") == "on"
+    default_domain = _normalize_domain_text(request.form.get("default_domain") or "")
+
+    domain_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user.id).first()
+    if not domain_cfg:
+        domain_cfg = BotDomainGlobalConfig(user_id=user.id)
+        db.session.add(domain_cfg)
+
+    if domain_mode == "random":
+        domain_cfg.is33mail = False
+        domain_cfg.random_domains = True
+    elif domain_mode == "custom":
+        domain_cfg.is33mail = False
+        domain_cfg.random_domains = False
+    else:
+        domain_cfg.is33mail = True
+        domain_cfg.random_domains = False
+    domain_cfg.fill_domain = random_fill_domain
+    domain_cfg.domain = default_domain or None
+
+    db.session.commit()
+    return _render_bot_config_page(user, success="Configuración global de dominios guardada.")
+
+
+@web_bp.post("/bot-config/domain/create")
+def bot_config_domain_create():
+    guard = _require_login()
+    if guard:
+        return guard
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    domain_text = _normalize_domain_text(request.form.get("domain") or "")
+    if not domain_text:
+        return _render_bot_config_page(user, error="Debes indicar un dominio válido.", status_code=400)
+
+    exists = BotDomainEntry.query.filter_by(user_id=user.id, domain=domain_text).first()
+    if exists:
+        return _render_bot_config_page(user, error="Ese dominio ya existe en servidor.", status_code=400)
+
+    db.session.add(BotDomainEntry(
+        user_id=user.id,
+        domain=domain_text,
+        fill_domain=request.form.get("fill_domain") == "on",
+        is_active=request.form.get("is_active") == "on",
+    ))
+    db.session.commit()
+    return _render_bot_config_page(user, success="Dominio agregado en servidor.")
+
+
+@web_bp.post("/bot-config/domain/<int:domain_id>/update")
+def bot_config_domain_update(domain_id: int):
+    guard = _require_login()
+    if guard:
+        return guard
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    row = BotDomainEntry.query.filter_by(id=domain_id, user_id=user.id).first()
+    if not row:
+        return _render_bot_config_page(user, error="Dominio no encontrado.", status_code=404)
+
+    domain_text = _normalize_domain_text(request.form.get("domain") or "")
+    if not domain_text:
+        return _render_bot_config_page(user, error="Debes indicar un dominio válido.", status_code=400)
+
+    duplicate = (
+        BotDomainEntry.query
+        .filter(BotDomainEntry.user_id == user.id, BotDomainEntry.domain == domain_text, BotDomainEntry.id != row.id)
+        .first()
+    )
+    if duplicate:
+        return _render_bot_config_page(user, error="Ese dominio ya existe en otro registro.", status_code=400)
+
+    row.domain = domain_text
+    row.fill_domain = request.form.get("fill_domain") == "on"
+    row.is_active = request.form.get("is_active") == "on"
+    db.session.commit()
+    return _render_bot_config_page(user, success="Dominio actualizado.")
+
+
+@web_bp.post("/bot-config/domain/<int:domain_id>/delete")
+def bot_config_domain_delete(domain_id: int):
+    guard = _require_login()
+    if guard:
+        return guard
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    row = BotDomainEntry.query.filter_by(id=domain_id, user_id=user.id).first()
+    if not row:
+        return _render_bot_config_page(user, error="Dominio no encontrado.", status_code=404)
+    db.session.delete(row)
+    db.session.commit()
+    return _render_bot_config_page(user, success="Dominio eliminado.")
+
+
+@web_bp.post("/bot-config/tld/create")
+def bot_config_tld_create():
+    guard = _require_login()
+    if guard:
+        return guard
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    tld = _normalize_tld_text(request.form.get("tld") or "")
+    if not tld:
+        return _render_bot_config_page(user, error="Debes indicar una terminación válida.", status_code=400)
+
+    exists = BotRandomTldEntry.query.filter_by(user_id=user.id, tld=tld).first()
+    if exists:
+        return _render_bot_config_page(user, error="Esa terminación ya existe.", status_code=400)
+
+    max_order = db.session.query(db.func.max(BotRandomTldEntry.sort_order)).filter_by(user_id=user.id).scalar()
+    next_order = int(max_order or -1) + 1
+    db.session.add(BotRandomTldEntry(user_id=user.id, tld=tld, sort_order=next_order))
+    db.session.commit()
+    return _render_bot_config_page(user, success="Terminación añadida.")
+
+
+@web_bp.post("/bot-config/tld/<int:tld_id>/update")
+def bot_config_tld_update(tld_id: int):
+    guard = _require_login()
+    if guard:
+        return guard
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    row = BotRandomTldEntry.query.filter_by(id=tld_id, user_id=user.id).first()
+    if not row:
+        return _render_bot_config_page(user, error="Terminación no encontrada.", status_code=404)
+
+    tld = _normalize_tld_text(request.form.get("tld") or "")
+    if not tld:
+        return _render_bot_config_page(user, error="Debes indicar una terminación válida.", status_code=400)
+
+    duplicate = (
+        BotRandomTldEntry.query
+        .filter(BotRandomTldEntry.user_id == user.id, BotRandomTldEntry.tld == tld, BotRandomTldEntry.id != row.id)
+        .first()
+    )
+    if duplicate:
+        return _render_bot_config_page(user, error="Esa terminación ya existe en otro registro.", status_code=400)
+
+    row.tld = tld
+    db.session.commit()
+    return _render_bot_config_page(user, success="Terminación actualizada.")
+
+
+@web_bp.post("/bot-config/tld/<int:tld_id>/delete")
+def bot_config_tld_delete(tld_id: int):
+    guard = _require_login()
+    if guard:
+        return guard
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    row = BotRandomTldEntry.query.filter_by(id=tld_id, user_id=user.id).first()
+    if not row:
+        return _render_bot_config_page(user, error="Terminación no encontrada.", status_code=404)
+    db.session.delete(row)
+    db.session.commit()
+    return _render_bot_config_page(user, success="Terminación eliminada.")
 
 
 @web_bp.get("/accounts/hourly-stats")

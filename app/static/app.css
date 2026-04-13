@@ -40,7 +40,7 @@ code{color:var(--code)}
 .h1{margin:0 0 10px 0;font-size:28px}
 .h2{margin:0;font-size:18px}
 .muted{color:var(--muted)}
-.card{background:rgba(17,26,51,.9);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card{background:rgba(17,26,51,.9);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
 .card{background:var(--card);box-shadow:0 8px 22px var(--shadow)}
 .card--narrow{max-width:460px;margin:64px auto}
 .card__header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -232,3 +232,50 @@ html[data-theme="light"] .iconbtn__moon{display:none}
 .button--small{padding:6px 12px;font-size:13px}
 .button--danger{background:var(--danger);color:#fff}
 .button--danger:hover{filter:brightness(1.1)}
+
+/* Bot config responsive tables/forms */
+.bot-config-table-wrap{
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  touch-action:pan-x pan-y;
+}
+.bot-config-table{
+  width:max-content;
+  min-width:100%;
+  min-width:640px;
+}
+.bot-config-table--compat{
+  min-width:860px;
+}
+.bot-config-actions-cell{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.bot-config-inline-form{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+@media (max-width: 700px){
+  .bot-config-table{
+    min-width:560px;
+  }
+  .bot-config-table--compat{
+    min-width:700px;
+  }
+  .bot-config-inline-form{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .bot-config-inline-form .button{
+    width:100%;
+  }
+}

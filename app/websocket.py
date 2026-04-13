@@ -4,7 +4,12 @@ from flask_socketio import emit, disconnect
 from app.database import db
 from app.models.bot import Bot
 from app.models.user import User
+from app.models.bot_browser_presence import BotBrowserPresence
+from app.models.bot_domain_global_config import BotDomainGlobalConfig
+from app.models.bot_domain_entry import BotDomainEntry
+from app.models.bot_random_tld_entry import BotRandomTldEntry
 import jwt
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 
 def register_socketio_handlers(socketio):
@@ -197,92 +202,46 @@ def register_socketio_handlers(socketio):
     
     @socketio.on('disconnect')
     def handle_disconnect():
-        """Maneja la desconexión de un bot"""
-        import threading
-        import time
-        from flask import current_app
-        
-        # Capturar socket_id ANTES de iniciar el thread (request.sid solo está disponible en el contexto actual)
-        socket_id = None
+        """Maneja la desconexión de un bot sin escribir en el socket cerrado."""
         try:
             socket_id = request.sid
-        except:
+        except Exception:
             print("⚠️  Desconexión sin socket_id disponible")
             return
-        
-        # Obtener información del bot ANTES de iniciar el thread
-        bot = None
-        bot_id = None
-        user_id = None
-        bot_name = None
-        app_instance = None
+
         try:
             bot = Bot.query.filter_by(socket_id=socket_id).first()
-            if bot:
-                bot_name = bot.name
-                bot_id = bot.id
-                user_id = bot.user_id
-            # Capturar la instancia de la aplicación para usar en el thread
-            app_instance = current_app._get_current_object()
-        except Exception as e:
-            print(f"⚠️  Error al obtener bot: {e}")
-            return
-        
-        if not bot:
-            print(f"⚠️  Desconexión de socket desconocido: {socket_id}")
-            return
-        
-        def process_disconnect(app, sid, bid, uid, name):
-            """Procesa la desconexión en un thread separado para evitar errores de escritura"""
-            # Usar application context para poder acceder a la base de datos
-            with app.app_context():
-                try:
-                    # Pequeño delay para asegurar que la desconexión se complete
-                    time.sleep(0.2)
-                    
-                    print(f"🔌 Bot desconectado: {name} (ID: {bid})")
-                    
-                    # Actualizar estado del bot en la base de datos
-                    try:
-                        # Re-obtener el bot para asegurar que tenemos la versión más reciente
-                        current_bot = Bot.query.filter_by(id=bid).first()
-                        if current_bot:
-                            current_bot.status = 'offline'
-                            current_bot.socket_id = None
-                            current_bot.last_seen = datetime.utcnow()
-                            db.session.commit()
-                    except Exception as db_error:
-                        print(f"⚠️  Error al actualizar bot en BD: {db_error}")
-                        db.session.rollback()
-                    
-                    # Notificar a clientes web usando emit con skip_sid para evitar errores
-                    try:
-                        socketio.emit('bot_status_changed', {
-                            'bot_id': bid,
-                            'status': 'offline',
-                            'user_id': uid
-                        }, room=f'user_{uid}', skip_sid=sid)
-                    except Exception as emit_error:
-                        # Si falla el emit, no es crítico - la conexión ya se cerró
-                        print(f"⚠️  No se pudo notificar desconexión (conexión ya cerrada): {emit_error}")
-                except Exception as e:
-                    print(f"❌ Error en disconnect: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Asegurar rollback en caso de error
-                    try:
-                        db.session.rollback()
-                    except:
-                        pass
-        
-        # Procesar la desconexión en un thread separado con un pequeño delay
-        # para evitar errores de "write() before start_response"
-        try:
-            threading.Thread(target=process_disconnect, args=(app_instance, socket_id, bot_id, user_id, bot_name), daemon=True).start()
-        except Exception as e:
-            print(f"⚠️  Error al iniciar thread de desconexión: {e}")
-            # Si falla el thread, simplemente registrar la desconexión sin procesar
+            if not bot:
+                print(f"⚠️  Desconexión de socket desconocido: {socket_id}")
+                return
+
+            bot_id = bot.id
+            user_id = bot.user_id
+            bot_name = bot.name
+
+            bot.status = 'offline'
+            bot.socket_id = None
+            bot.last_seen = datetime.utcnow()
+            db.session.commit()
             print(f"🔌 Bot desconectado: {bot_name} (ID: {bot_id})")
+
+            # Notificar solo a UIs web; errores aquí no deben romper el disconnect.
+            try:
+                socketio.emit('bot_status_changed', {
+                    'bot_id': bot_id,
+                    'status': 'offline',
+                    'user_id': user_id
+                }, room=f'user_{user_id}')
+            except Exception as emit_error:
+                print(f"⚠️  No se pudo notificar desconexión a UI: {emit_error}")
+        except Exception as e:
+            print(f"❌ Error en disconnect: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
     
     @socketio.on('status_update')
     def handle_status_update(data):
@@ -397,4 +356,170 @@ def register_socketio_handlers(socketio):
             print(f"❌ Error en action_completed: {e}")
             import traceback
             traceback.print_exc()
+
+    @socketio.on('sync_available_browsers')
+    def handle_sync_available_browsers(data):
+        """Recibe y guarda navegadores disponibles reportados por el bot."""
+        try:
+            bot = Bot.query.filter_by(socket_id=request.sid).first()
+            if not bot:
+                print(f"⚠️  sync_available_browsers recibido de socket desconocido: {request.sid}")
+                return
+
+            raw_browsers = data.get('browsers', []) if isinstance(data, dict) else []
+            if not isinstance(raw_browsers, list):
+                print("⚠️  Formato inválido en sync_available_browsers: 'browsers' debe ser lista")
+                return
+
+            normalized = []
+            seen = set()
+            for name in raw_browsers:
+                if not isinstance(name, str):
+                    continue
+                clean = name.strip()
+                if not clean:
+                    continue
+                key = clean.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                normalized.append(clean)
+
+            if not normalized:
+                return
+
+            now = datetime.utcnow()
+            incoming_names = set(normalized)
+
+            # UPSERT por navegador (evita duplicados incluso con concurrencia).
+            for browser_name in incoming_names:
+                stmt = sqlite_insert(BotBrowserPresence).values(
+                    user_id=bot.user_id,
+                    bot_id=bot.id,
+                    browser_name=browser_name,
+                    last_seen=now,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['bot_id', 'browser_name'],
+                    set_={'last_seen': now, 'user_id': bot.user_id}
+                )
+                db.session.execute(stmt)
+
+            # Eliminar navegadores que este bot ya no reporta.
+            base_query = BotBrowserPresence.query.filter_by(bot_id=bot.id)
+            if incoming_names:
+                base_query = base_query.filter(~BotBrowserPresence.browser_name.in_(incoming_names))
+            base_query.delete(synchronize_session=False)
+
+            db.session.commit()
+            print(
+                f"✅ Catálogo de navegadores sincronizado para user_id={bot.user_id}, "
+                f"bot_id={bot.id}: {len(incoming_names)} activos"
+            )
+        except Exception as e:
+            print(f"❌ Error en sync_available_browsers: {e}")
+            try:
+                db.session.rollback()
+            except:
+                pass
+
+    @socketio.on('sync_domain_config')
+    def handle_sync_domain_config(data):
+        """Sincroniza catálogo de dominios y configuración global reportada por el bot."""
+        try:
+            bot = Bot.query.filter_by(socket_id=request.sid).first()
+            if not bot:
+                print(f"⚠️  sync_domain_config recibido de socket desconocido: {request.sid}")
+                return
+
+            if not isinstance(data, dict):
+                print("⚠️  Formato inválido en sync_domain_config")
+                return
+
+            payload_global = data.get('global_config') or {}
+            payload_domains = data.get('domains') or []
+            payload_tlds = data.get('random_tlds') or []
+
+            global_cfg = BotDomainGlobalConfig.query.filter_by(user_id=bot.user_id).first()
+            if not global_cfg:
+                global_cfg = BotDomainGlobalConfig(
+                    user_id=bot.user_id,
+                    is33mail=bool(payload_global.get('is33mail', True)),
+                    random_domains=bool(payload_global.get('random_domains', False)),
+                    fill_domain=bool(payload_global.get('fill_domain', False)),
+                    domain=(payload_global.get('domain') or None),
+                )
+                db.session.add(global_cfg)
+
+            normalized_domains = []
+            seen_domains = set()
+            for row in payload_domains:
+                if not isinstance(row, dict):
+                    continue
+                domain_name = str(row.get('domain') or '').strip()
+                if not domain_name:
+                    continue
+                if not domain_name.startswith('@'):
+                    domain_name = f"@{domain_name}"
+                key = domain_name.lower()
+                if key in seen_domains:
+                    continue
+                seen_domains.add(key)
+                normalized_domains.append({
+                    'domain': domain_name,
+                    'fill_domain': bool(row.get('fill_domain', False)),
+                    'is_active': bool(row.get('is_active', True)),
+                })
+
+            for row in normalized_domains:
+                stmt = sqlite_insert(BotDomainEntry).values(
+                    user_id=bot.user_id,
+                    domain=row['domain'],
+                    fill_domain=row['fill_domain'],
+                    is_active=row['is_active'],
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['user_id', 'domain'],
+                    set_={
+                        'fill_domain': row['fill_domain'],
+                        'is_active': row['is_active'],
+                    }
+                )
+                db.session.execute(stmt)
+
+            normalized_tlds = []
+            seen_tlds = set()
+            for index, row in enumerate(payload_tlds):
+                value = row.get('tld') if isinstance(row, dict) else row
+                tld = str(value or '').strip().lstrip('.').lower()
+                if not tld:
+                    continue
+                if tld in seen_tlds:
+                    continue
+                seen_tlds.add(tld)
+                normalized_tlds.append({'tld': tld, 'sort_order': index})
+
+            for row in normalized_tlds:
+                stmt = sqlite_insert(BotRandomTldEntry).values(
+                    user_id=bot.user_id,
+                    tld=row['tld'],
+                    sort_order=row['sort_order'],
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['user_id', 'tld'],
+                    set_={'sort_order': row['sort_order']}
+                )
+                db.session.execute(stmt)
+
+            db.session.commit()
+            print(
+                f"✅ Config de dominios sincronizada user_id={bot.user_id}: "
+                f"{len(normalized_domains)} dominios, {len(normalized_tlds)} tlds"
+            )
+        except Exception as e:
+            print(f"❌ Error en sync_domain_config: {e}")
+            try:
+                db.session.rollback()
+            except:
+                pass
 

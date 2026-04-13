@@ -1,12 +1,50 @@
-import os
 from flask import Blueprint, request, jsonify, current_app
 from app.database import db
 from app.models.bot import Bot
-from app.models.user import User
+from app.models.bot_global_config import BotGlobalConfig
+from app.models.bot_browser_user_agent import BotBrowserUserAgent
+from app.models.bot_domain_global_config import BotDomainGlobalConfig
+from app.models.bot_domain_entry import BotDomainEntry
+from app.models.bot_random_tld_entry import BotRandomTldEntry
 from app.utils.auth import token_required, session_or_token_required
-from datetime import datetime
 
 bots_bp = Blueprint('bots', __name__, url_prefix='/api/bots')
+
+
+def _build_remote_domain_config(user_id: int) -> dict:
+    global_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user_id).first()
+    domain_rows = (
+        BotDomainEntry.query
+        .filter_by(user_id=user_id)
+        .order_by(BotDomainEntry.id.asc())
+        .all()
+    )
+    tld_rows = (
+        BotRandomTldEntry.query
+        .filter_by(user_id=user_id)
+        .order_by(BotRandomTldEntry.sort_order.asc(), BotRandomTldEntry.id.asc())
+        .all()
+    )
+    return {
+        "global_config": {
+            "is33mail": bool(global_cfg.is33mail) if global_cfg else True,
+            "random_domains": bool(global_cfg.random_domains) if global_cfg else False,
+            "fill_domain": bool(global_cfg.fill_domain) if global_cfg else False,
+            "domain": global_cfg.domain if global_cfg else None,
+        },
+        "domains": [
+            {
+                "domain": row.domain,
+                "fill_domain": bool(row.fill_domain),
+                "is_active": bool(row.is_active),
+            }
+            for row in domain_rows
+        ],
+        "random_tlds": [
+            {"tld": row.tld, "sort_order": int(row.sort_order or 0)}
+            for row in tld_rows
+        ],
+    }
 
 
 #! ENDPOINT PARA OBTENER TODOS LOS BOTS DE UN USUARIO
@@ -97,11 +135,24 @@ def send_command(bot_id):
                     "status_synced": True
                 }), 200
         
+        global_config = BotGlobalConfig.query.filter_by(user_id=request.current_user.id).first()
+        preferred_browser = global_config.preferred_browser if global_config else None
+        user_agent = None
+        if preferred_browser:
+            ua_cfg = BotBrowserUserAgent.query.filter_by(
+                user_id=request.current_user.id,
+                browser_name=preferred_browser
+            ).first()
+            user_agent = ua_cfg.user_agent if ua_cfg else None
+
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
         socketio.emit('command', {
             'command': command,
-            'bot_id': bot_id
+            'bot_id': bot_id,
+            'preferred_browser': preferred_browser,
+            'remote_user_agent': user_agent,
+            'remote_domain_config': _build_remote_domain_config(request.current_user.id),
         }, room=bot.socket_id)
         
         # Devolver el estado actual del bot para sincronizar la UI

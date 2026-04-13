@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="card" style="max-width: 760px;">
+  <div class="card__header">
+    <h2 style="margin: 0;">Configuración Global de Bots</h2>
+  </div>
+
+  <p class="muted" style="margin-top: 0;">
+    Esta configuración se aplica a todos tus bots conectados al enviar comandos de ejecución.
+  </p>
+
+  {% if error %}
+  <div class="alert alert--error" style="margin-bottom: 16px;">{{ error }}</div>
+  {% endif %}
+  {% if success %}
+  <div class="alert alert--success" style="margin-bottom: 16px;">{{ success }}</div>
+  {% endif %}
+  {% set current_domain_mode = '33mail' if domain_cfg.is33mail else ('random' if domain_cfg.random_domains else 'custom') %}
+
+  <form id="bot-config-form" method="POST" action="{{ url_for('web.bot_config_post') }}" style="display: grid; gap: 12px;">
+    <label for="preferred_browser">Navegador global para ejecutar bots</label>
+    <select id="preferred_browser" name="preferred_browser" class="input">
+      <option value="">Sin selección (usar configuración local del bot)</option>
+      {% for browser_name in browser_options %}
+      <option value="{{ browser_name }}" {% if selected_browser == browser_name %}selected{% endif %}>
+        {{ browser_name }}
+      </option>
+      {% endfor %}
+    </select>
+
+    {% if not browser_options %}
+    <div class="muted">
+      Aún no hay navegadores sincronizados desde tus bots de `confirmbot`.
+      Conecta al menos un bot para cargar el catálogo.
+    </div>
+    {% endif %}
+
+    <div>
+      <button type="submit" class="button button--primary">Guardar configuración global</button>
+    </div>
+
+    <div style="margin-top: 8px;">
+      <h4 style="margin: 0 0 8px 0;">User-Agent por navegador (servidor)</h4>
+      <p class="muted" style="margin-top: 0;">
+        Define aquí solo el User-Agent del navegador global seleccionado.
+      </p>
+      {% if missing_ua_browsers and selected_browser %}
+      <div class="muted" style="margin-bottom: 10px;">
+        Advertencia: hay navegadores sin User-Agent configurado ({{ missing_ua_browsers|join(', ') }}).
+        Puedes configurar solo los que vayas a usar.
+      </div>
+      {% endif %}
+      {% if selected_browser %}
+      <div style="display: grid; gap: 8px;">
+        <div class="ua-row" data-browser-name="{{ selected_browser }}" style="display: grid; gap: 6px;">
+          <label id="selected-browser-label">{{ selected_browser }}</label>
+          <input id="ua-browser-name-hidden" type="hidden" name="ua_browser_name" value="{{ selected_browser }}">
+          <input
+            id="ua-value-input"
+            type="text"
+            name="ua_value"
+            class="input"
+            placeholder="User-Agent para {{ selected_browser }}"
+            value="{{ selected_user_agent or '' }}"
+          />
+        </div>
+      </div>
+      {% else %}
+      <div class="muted">Selecciona primero un navegador global para configurar su User-Agent.</div>
+      {% endif %}
+    </div>
+
+  </form>
+</section>
+
+<section class="card" style="margin-top: 16px;">
+  <div class="card__header">
+    <h3 style="margin: 0;">Configuración global de dominios</h3>
+  </div>
+  <p class="muted" style="margin-top: 0;">
+    Este bloque es global para todos los navegadores.
+  </p>
+  <form id="domain-settings-form" method="POST" action="{{ url_for('web.bot_config_domain_settings_post') }}" style="display: grid; gap: 8px; margin-bottom: 14px;">
+    <label for="domain_mode">Modo de dominio</label>
+    <select id="domain_mode" name="domain_mode" class="input">
+      <option value="33mail" {% if current_domain_mode == '33mail' %}selected{% endif %}>Usar 33mail</option>
+      <option value="random" {% if current_domain_mode == 'random' %}selected{% endif %}>Dominios aleatorios</option>
+      <option value="custom" {% if current_domain_mode == 'custom' %}selected{% endif %}>Tabla de dominios personalizados</option>
+    </select>
+
+    <div id="custom-domain-options" {% if current_domain_mode != 'custom' %}style="display: none;"{% endif %}>
+      <label for="default_domain">Dominio por defecto (opcional)</label>
+      <input
+        id="default_domain"
+        type="text"
+        class="input"
+        name="default_domain"
+        placeholder="@gmail.com"
+        value="{{ domain_cfg.domain or '' }}"
+      />
+    </div>
+    <div>
+      <button type="submit" class="button button--primary">Guardar configuración global de dominios</button>
+    </div>
+  </form>
+
+  <div id="custom-domains-section" {% if current_domain_mode != 'custom' %}style="display: none;"{% endif %}>
+    <div class="card__header" style="padding-left: 0; padding-right: 0;">
+      <h3 style="margin: 0;">Dominios personalizados</h3>
+    </div>
+    <p class="muted" style="margin-top: 0;">
+      Crea, edita y elimina dominios para usar cuando el modo sea "Tabla de dominios personalizados".
+    </p>
+
+    <form method="POST" action="{{ url_for('web.bot_config_domain_create') }}" class="bot-config-inline-form" style="margin-bottom: 12px;">
+      <input type="text" class="input" name="domain" placeholder="@gmail.com" style="min-width: 220px;">
+      <label style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" name="fill_domain">
+        Rellenar
+      </label>
+      <label style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" name="is_active" checked>
+        Activo
+      </label>
+      <button type="submit" class="button button--primary">Agregar dominio</button>
+    </form>
+
+    {% if domain_entries %}
+    <div class="bot-config-table-wrap">
+      <table class="table bot-config-table">
+        <thead>
+          <tr>
+            <th>Dominio</th>
+            <th>Rellenar</th>
+            <th>Activo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in domain_entries %}
+          <tr>
+            <td>
+              <input type="text" class="input" name="domain" value="{{ row.domain }}" style="min-width: 220px;" form="domain-form-{{ row.id }}">
+            </td>
+            <td>
+              <input type="checkbox" name="fill_domain" {% if row.fill_domain %}checked{% endif %} form="domain-form-{{ row.id }}">
+            </td>
+            <td>
+              <input type="checkbox" name="is_active" {% if row.is_active %}checked{% endif %} form="domain-form-{{ row.id }}">
+            </td>
+            <td class="bot-config-actions-cell">
+              <form id="domain-form-{{ row.id }}" method="POST" action="{{ url_for('web.bot_config_domain_update', domain_id=row.id) }}">
+                <button type="submit" class="button">Guardar</button>
+              </form>
+              <form method="POST" action="{{ url_for('web.bot_config_domain_delete', domain_id=row.id) }}">
+                <button type="submit" class="button button--danger">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="muted">No hay dominios personalizados configurados.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section id="random-tlds-section" class="card" style="margin-top: 16px;{% if current_domain_mode != 'random' %} display: none;{% endif %}">
+  <div class="card__header">
+    <h3 style="margin: 0;">Terminaciones para dominios aleatorios (TLD)</h3>
+  </div>
+  <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+    <input type="checkbox" name="random_fill_domain" form="domain-settings-form" {% if domain_cfg.fill_domain %}checked{% endif %}>
+    Rellenar subdominio (palabra + 3 dígitos aleatorios del 0 al 9)
+  </label>
+  <p class="muted" style="margin-top: 0;">
+    Si dejas la lista vacía, el bot usará terminación aleatoria automática.
+  </p>
+
+  <form method="POST" action="{{ url_for('web.bot_config_tld_create') }}" class="bot-config-inline-form" style="margin-bottom: 12px;">
+    <input type="text" class="input" name="tld" placeholder="com o co.uk" style="min-width: 220px;">
+    <button type="submit" class="button button--primary">Agregar terminación</button>
+  </form>
+
+  {% if random_tld_entries %}
+  <div class="bot-config-table-wrap">
+    <table class="table bot-config-table">
+      <thead>
+        <tr>
+          <th>Terminación</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in random_tld_entries %}
+        <tr>
+          <td>
+            <input type="text" class="input" name="tld" value="{{ row.tld }}" style="min-width: 220px;" form="tld-form-{{ row.id }}">
+          </td>
+          <td class="bot-config-actions-cell">
+            <form id="tld-form-{{ row.id }}" method="POST" action="{{ url_for('web.bot_config_tld_update', tld_id=row.id) }}">
+              <button type="submit" class="button">Guardar</button>
+            </form>
+            <form method="POST" action="{{ url_for('web.bot_config_tld_delete', tld_id=row.id) }}">
+              <button type="submit" class="button button--danger">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="muted">No hay terminaciones configuradas.</div>
+  {% endif %}
+</section>
+
+<section class="card" style="margin-top: 16px;">
+  <div class="card__header">
+    <h3 style="margin: 0;">Compatibilidad por bot</h3>
+  </div>
+
+  {% if selected_browser %}
+  <div style="margin-bottom: 12px;">
+    <strong>Navegador global seleccionado:</strong> {{ selected_browser }}
+  </div>
+  {% if not selected_exists_in_any_bot %}
+  <div class="alert alert--error" style="margin-bottom: 12px;">
+    El navegador global seleccionado no existe en ningún bot sincronizado actualmente.
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="muted" style="margin-bottom: 12px;">
+    No hay navegador global seleccionado.
+  </div>
+  {% endif %}
+
+  <p class="muted" style="margin-top: 0;">
+    Matriz bot vs navegador para identificar quién está alineado con la configuración global.
+  </p>
+
+  {% if not matrix_rows %}
+  <div class="muted">No hay bots registrados para este usuario.</div>
+  {% elif not matrix_headers %}
+  <div class="muted">Aún no hay navegadores sincronizados por los bots.</div>
+  {% else %}
+  <div class="bot-config-table-wrap">
+    <table class="table bot-config-table bot-config-table--compat">
+      <thead>
+        <tr>
+          <th>Bot</th>
+          <th>Estado</th>
+          <th>Última sync</th>
+          <th>Alineación</th>
+          {% for browser_name in matrix_headers %}
+          <th>{{ browser_name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in matrix_rows %}
+        <tr>
+          <td>{{ row.bot.name }} <span class="muted">({{ row.bot.bot_type }})</span></td>
+          <td>
+            <span class="status-badge status-badge--{{ row.bot.status }}">{{ row.bot.status }}</span>
+          </td>
+          <td>{{ row.last_sync|fmt_dt if row.last_sync else 'Sin sync' }}</td>
+          <td>
+            {% if selected_browser and row.missing_selected %}
+            <span class="status-badge status-badge--stopped">Desalineado</span>
+            {% elif selected_browser %}
+            <span class="status-badge status-badge--running">Alineado</span>
+            {% else %}
+            <span class="muted">Sin navegador global</span>
+            {% endif %}
+          </td>
+          {% for browser_name in matrix_headers %}
+          <td style="text-align: center;">
+            {% if browser_name in row.browser_names %}✅{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+<script>
+  (function () {
+    const browserSelect = document.getElementById('preferred_browser');
+    const browserLabel = document.getElementById('selected-browser-label');
+    const hiddenBrowserName = document.getElementById('ua-browser-name-hidden');
+    const uaInput = document.getElementById('ua-value-input');
+    if (!browserSelect || !browserLabel || !hiddenBrowserName || !uaInput) return;
+
+    const userAgentMap = {{ user_agent_map|tojson }};
+
+    function syncUserAgentField() {
+      const selectedBrowser = (browserSelect.value || '').trim();
+      browserLabel.textContent = selectedBrowser || 'Sin navegador seleccionado';
+      hiddenBrowserName.value = selectedBrowser;
+      uaInput.placeholder = selectedBrowser
+        ? `User-Agent para ${selectedBrowser}`
+        : 'Selecciona un navegador global primero';
+      uaInput.value = selectedBrowser ? (userAgentMap[selectedBrowser] || '') : '';
+    }
+
+    browserSelect.addEventListener('change', syncUserAgentField);
+  })();
+</script>
+<script>
+  (function () {
+    const modeSelect = document.getElementById('domain_mode');
+    const customOptions = document.getElementById('custom-domain-options');
+    const customSection = document.getElementById('custom-domains-section');
+    const tldSection = document.getElementById('random-tlds-section');
+    if (!modeSelect) return;
+
+    function toggleDomainBlocks() {
+      const mode = (modeSelect.value || '33mail').trim();
+      if (customOptions) customOptions.style.display = mode === 'custom' ? 'block' : 'none';
+      if (customSection) customSection.style.display = mode === 'custom' ? 'block' : 'none';
+      if (tldSection) tldSection.style.display = mode === 'random' ? 'block' : 'none';
+    }
+
+    modeSelect.addEventListener('change', toggleDomainBlocks);
+    toggleDomainBlocks();
+  })();
+</script>
+{% endblock %}

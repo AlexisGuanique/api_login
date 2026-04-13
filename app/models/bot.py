@@ -10,6 +10,7 @@ class Bot(db.Model):
     bot_type = db.Column(db.String(20), nullable=False)  # 'creador' o 'logueador'
     status = db.Column(db.String(20), default='offline', nullable=False)  # 'online', 'offline', 'running', 'stopped'
     socket_id = db.Column(db.String(100), nullable=True)  # ID de conexión WebSocket
+    preferred_browser = db.Column(db.String(100), nullable=True)  # Navegador preferido configurado desde servidor
     next_cycle_at = db.Column(db.DateTime, nullable=True)  # Hora estimada del próximo ciclo (solo para logueadores)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -60,6 +61,7 @@ class Bot(db.Model):
             'bot_type': self.bot_type,
             'status': effective_status,
             'socket_id': self.socket_id,
+            'preferred_browser': self.preferred_browser,
             'next_cycle_at': to_iso_utc(self.next_cycle_at),
             'last_seen': to_iso_utc(self.last_seen),
             'created_at': to_iso_utc(self.created_at),
