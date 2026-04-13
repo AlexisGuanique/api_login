@@ -4,6 +4,7 @@ from logging.config import fileConfig
 from flask import current_app
 
 from alembic import context
+from sqlalchemy import text
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -110,6 +111,10 @@ def run_migrations_online():
     connectable = get_engine()
 
     with connectable.connect() as connection:
+        # SQLite: esperar hasta 30s si otro proceso tiene la BD (mitiga locks puntuales)
+        if connection.dialect.name == "sqlite":
+            connection.execute(text("PRAGMA busy_timeout = 30000"))
+
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),

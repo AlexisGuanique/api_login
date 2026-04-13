@@ -87,6 +87,36 @@ fi
 
 set -u  # Reactivar verificación
 
+# Migraciones ANTES de arrancar Gunicorn: SQLite bloquea si otra conexión (el worker)
+# mantiene la base abierta; un contenedor efímero es el patrón recomendado.
+echo "🔄 Aplicando migraciones (contenedor efímero, sin Gunicorn — evita 'database is locked')..."
+echo "   (Alembic solo aplica cambios pendientes)"
+echo "📋 Revisión actual (si existe):"
+sudo docker run --rm \
+  -v "${VOLUME_NAME}:/api_login/app/database" \
+  -e DATABASE_PATH="$DATABASE_PATH" \
+  -e ADMIN_KEY="$ADMIN_KEY" \
+  -e SECRET_KEY="$SECRET_KEY" \
+  -e SESSION_COOKIE_SECURE="$SESSION_COOKIE_SECURE" \
+  "$IMAGE_NAME" \
+  flask db current 2>/dev/null | head -5 || true
+
+echo "⬆️  Aplicando migraciones pendientes..."
+if ! sudo docker run --rm \
+  -v "${VOLUME_NAME}:/api_login/app/database" \
+  -e DATABASE_PATH="$DATABASE_PATH" \
+  -e ADMIN_KEY="$ADMIN_KEY" \
+  -e SECRET_KEY="$SECRET_KEY" \
+  -e SESSION_COOKIE_SECURE="$SESSION_COOKIE_SECURE" \
+  "$IMAGE_NAME" \
+  flask db upgrade heads; then
+  echo "❌ Error: las migraciones fallaron (p. ej. SQLite locked o error SQL)."
+  echo "   Corrige el problema y vuelve a ejecutar el despliegue."
+  echo "   Si la revisión quedó a medias, revisa: sudo docker run --rm -v ${VOLUME_NAME}:/api_login/app/database -e DATABASE_PATH=$DATABASE_PATH $IMAGE_NAME flask db current"
+  exit 1
+fi
+echo "✅ Migraciones aplicadas correctamente"
+
 # Ejecutar contenedor con volumen
 echo "Ejecutando contenedor ($CONTAINER_NAME) en puerto host $APP_PORT..."
 sudo docker run -d \
@@ -216,28 +246,7 @@ with app.app_context():
     print('FIXED' if tables_fixed else 'OK')
 " 2>/dev/null || echo "OK")
 
-# SIEMPRE aplicar migraciones pendientes (Alembic es seguro y solo aplica cambios pendientes)
-echo "🔄 Aplicando migraciones de base de datos..."
-echo "   (Alembic solo aplicará cambios pendientes, es seguro ejecutarlo siempre)"
-
-# Verificar estado actual de migraciones
-echo "📋 Estado actual de migraciones:"
-CURRENT_REVISION=$(sudo docker exec "$CONTAINER_NAME" flask db current 2>/dev/null | head -1 | awk '{print $1}' || echo "")
-if [ -n "$CURRENT_REVISION" ]; then
-    echo "   Revisión actual: $CURRENT_REVISION"
-else
-    echo "   No hay migraciones aplicadas aún"
-fi
-
-# Aplicar todas las migraciones pendientes
-echo "⬆️  Aplicando migraciones pendientes..."
-if sudo docker exec "$CONTAINER_NAME" flask db upgrade heads; then
-    echo "✅ Migraciones aplicadas exitosamente"
-else
-    echo "⚠️  Error al aplicar migraciones"
-    echo "   Verifica los logs: sudo docker logs $CONTAINER_NAME"
-    echo "   Puede ser necesario corregir manualmente el estado de las migraciones"
-fi
+# Las migraciones ya se aplicaron antes de iniciar Gunicorn (evita SQLite locked).
 
 # Verificar que la columna next_cycle_at existe (migración reciente)
 echo "🔍 Verificando migración de next_cycle_at..."
@@ -266,7 +275,7 @@ echo ""
 echo "Protecciones activadas:"
 echo " - Backup automático antes del despliegue"
 echo " - Verificación de tablas existentes"
-echo " - Migraciones solo en primera instalación"
+echo " - Migraciones con contenedor efímero antes de arrancar la API (SQLite)"
 echo " - Volumen persistente para datos"
 echo " - Sesiones seguras configuradas (SECRET_KEY)"
 echo ""
