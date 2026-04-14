@@ -54,12 +54,20 @@ class Bot(db.Model):
                 iso_str += 'Z'
             return iso_str
         
+        status_labels = {
+            'offline': 'Desconectado',
+            'online': 'Conectado',
+            'stopped': 'En espera',
+            'running': 'En ejecución',
+        }
+
         return {
             'id': self.id,
             'user_id': self.user_id,
             'name': self.name,
             'bot_type': self.bot_type,
             'status': effective_status,
+            'status_label': status_labels.get(effective_status, effective_status),
             'socket_id': self.socket_id,
             'preferred_browser': self.preferred_browser,
             'next_cycle_at': to_iso_utc(self.next_cycle_at),
