@@ -78,6 +78,63 @@
     </div>
 
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
+      <h3 style="margin: 0 0 8px 0;">Creator: ciclo y hora (servidor)</h3>
+      <p class="muted" style="margin-top: 0;">
+        Se aplica en el PC del bot al pulsar «Ejecutar creator» desde la web. Si no configuras nada aquí,
+        el servidor envía por defecto modo <strong>ciclo</strong>, <strong>0</strong> minutos entre vueltas y <strong>1</strong> cuenta por ciclo.
+      </p>
+      {% set c_type = (browser_config.creator_time_config_type or 'cycle') if browser_config else 'cycle' %}
+      <label for="creator_time_config_type">Modo de tiempo</label>
+      <select id="creator_time_config_type" name="creator_time_config_type" class="input">
+        <option value="manual" {% if c_type == 'manual' %}selected{% endif %}>Manual (una cuenta y termina)</option>
+        <option value="cycle" {% if c_type == 'cycle' %}selected{% endif %}>Solo ciclo</option>
+        <option value="scheduled" {% if c_type == 'scheduled' %}selected{% endif %}>Solo hora programada</option>
+        <option value="both" {% if c_type == 'both' %}selected{% endif %}>Ciclo + hora programada</option>
+      </select>
+      <div style="display: grid; gap: 8px; margin-top: 10px;">
+        <label for="creator_cycle_minutes">Minutos entre ciclos (0 = seguido)</label>
+        <input
+          id="creator_cycle_minutes"
+          type="number"
+          name="creator_cycle_minutes"
+          class="input"
+          min="0"
+          max="1440"
+          value="{{ browser_config.creator_cycle_time_minutes if browser_config and browser_config.creator_cycle_time_minutes is not none else 0 }}"
+        />
+        <label for="creator_accounts_per_cycle">Cuentas por ciclo</label>
+        <input
+          id="creator_accounts_per_cycle"
+          type="number"
+          name="creator_accounts_per_cycle"
+          class="input"
+          min="1"
+          value="{{ browser_config.creator_accounts_per_cycle if browser_config and browser_config.creator_accounts_per_cycle is not none else 1 }}"
+        />
+        <label for="creator_scheduled_time">Hora programada (HH:MM, opcional)</label>
+        <input
+          id="creator_scheduled_time"
+          type="text"
+          name="creator_scheduled_time"
+          class="input"
+          placeholder="08:30"
+          value="{{ browser_config.creator_scheduled_time or '' }}"
+          autocomplete="off"
+        />
+        <label for="creator_timezone">Zona / país (texto libre, opcional)</label>
+        <input
+          id="creator_timezone"
+          type="text"
+          name="creator_timezone"
+          class="input"
+          placeholder="Argentina (GMT-3)"
+          value="{{ browser_config.creator_timezone or '' }}"
+          autocomplete="off"
+        />
+      </div>
+    </div>
+
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
       <h3 style="margin: 0 0 8px 0;">Configuración global de dominios</h3>
       <p class="muted" style="margin-top: 0;">
         Modo de dominio y opciones asociadas. Se guardan junto con navegadores y User-Agent al pulsar el botón de abajo.

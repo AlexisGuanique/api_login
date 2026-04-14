@@ -12,6 +12,41 @@ from app.utils.bot_preferences import get_preferred_browsers_list
 bots_bp = Blueprint('bots', __name__, url_prefix='/api/bots')
 
 
+def _build_remote_creator_time_config(user_id: int) -> dict:
+    """
+    Valores que el bot aplica en SQLite (global_time_config) al recibir execute_creator.
+    Si no hay fila o campos nulos, por defecto: ciclo continuo (0 min), 1 cuenta/ciclo.
+    """
+    g = BotGlobalConfig.query.filter_by(user_id=user_id).first()
+    default_type = "cycle"
+    default_cycle = 0
+    default_apc = 1
+    if not g:
+        return {
+            "scheduled_time": None,
+            "timezone": None,
+            "cycle_time_minutes": default_cycle,
+            "time_config_type": default_type,
+            "accounts_per_cycle": default_apc,
+        }
+    raw_type = (g.creator_time_config_type or default_type).strip().lower()
+    if raw_type not in ("manual", "scheduled", "cycle", "both"):
+        raw_type = default_type
+    cm = g.creator_cycle_time_minutes
+    if cm is None:
+        cm = default_cycle
+    apc = g.creator_accounts_per_cycle
+    if apc is None:
+        apc = default_apc
+    return {
+        "scheduled_time": g.creator_scheduled_time,
+        "timezone": g.creator_timezone,
+        "cycle_time_minutes": int(cm),
+        "time_config_type": raw_type,
+        "accounts_per_cycle": int(apc),
+    }
+
+
 def _build_remote_domain_config(user_id: int) -> dict:
     global_cfg = BotDomainGlobalConfig.query.filter_by(user_id=user_id).first()
     domain_rows = (
@@ -151,7 +186,7 @@ def send_command(bot_id):
 
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
-        socketio.emit('command', {
+        payload = {
             'command': command,
             'bot_id': bot_id,
             'preferred_browser': preferred_browser,
@@ -159,7 +194,12 @@ def send_command(bot_id):
             'remote_user_agent': user_agent,
             'remote_user_agents': remote_user_agents,
             'remote_domain_config': _build_remote_domain_config(request.current_user.id),
-        }, room=bot.socket_id)
+        }
+        if command == 'execute_creator':
+            payload['remote_creator_time_config'] = _build_remote_creator_time_config(
+                request.current_user.id
+            )
+        socketio.emit('command', payload, room=bot.socket_id)
         
         # Devolver el estado actual del bot para sincronizar la UI
         return jsonify({

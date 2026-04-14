@@ -211,6 +211,7 @@ def _render_bot_config_page(
     return render_template(
         "bot_config.html",
         user=user,
+        browser_config=browser_config,
         selected_browsers=selected_browsers,
         browser_options=browser_options,
         matrix_headers=matrix_headers,
@@ -729,6 +730,30 @@ def bot_config_post():
     else:
         browser_config.preferred_browsers_json = None
         browser_config.preferred_browser = None
+
+    # Creator: ciclo / hora (se envía al bot con execute_creator)
+    ct = (request.form.get("creator_time_config_type") or "cycle").strip().lower()
+    if ct not in ("manual", "scheduled", "cycle", "both"):
+        ct = "cycle"
+    browser_config.creator_time_config_type = ct
+    try:
+        cm_raw = request.form.get("creator_cycle_minutes")
+        browser_config.creator_cycle_time_minutes = (
+            int(cm_raw) if cm_raw not in (None, "") else None
+        )
+    except ValueError:
+        browser_config.creator_cycle_time_minutes = None
+    try:
+        apc_raw = request.form.get("creator_accounts_per_cycle")
+        browser_config.creator_accounts_per_cycle = (
+            int(apc_raw) if apc_raw not in (None, "") else None
+        )
+    except ValueError:
+        browser_config.creator_accounts_per_cycle = None
+    st = (request.form.get("creator_scheduled_time") or "").strip()
+    browser_config.creator_scheduled_time = st or None
+    tz = (request.form.get("creator_timezone") or "").strip()
+    browser_config.creator_timezone = tz or None
 
     for i, b in enumerate(browser_options):
         ua = (request.form.get(f"ua_{i}") or "").strip()
