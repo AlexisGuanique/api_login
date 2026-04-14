@@ -34,7 +34,7 @@ web_bp = Blueprint("web", __name__)
 def _get_browser_options_for_user(user_id: int) -> list[str]:
     """
     Devuelve opciones de navegador para configuración global.
-    Regla: usar la intersección de navegadores entre bots conectados.
+    Regla: usar la unión de navegadores entre bots conectados.
     Si no hay bots conectados, usar la unión histórica del usuario.
     """
     connected_bots = (
@@ -48,13 +48,8 @@ def _get_browser_options_for_user(user_id: int) -> list[str]:
 
     if connected_bot_ids:
         rows = BotBrowserPresence.query.filter(BotBrowserPresence.bot_id.in_(connected_bot_ids)).all()
-        by_bot = {bot_id: set() for bot_id in connected_bot_ids}
-        for row in rows:
-            by_bot.setdefault(row.bot_id, set()).add(row.browser_name)
-
-        sets = list(by_bot.values())
-        common = set.intersection(*sets) if sets else set()
-        return sorted(common, key=lambda x: x.lower())
+        union_names = {row.browser_name for row in rows}
+        return sorted(union_names, key=lambda x: x.lower())
 
     # Fallback cuando no hay bots conectados: unión histórica
     rows = BotBrowserPresence.query.filter_by(user_id=user_id).all()

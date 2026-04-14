@@ -135,6 +135,38 @@ if ! sudo docker run --rm \
 fi
 echo "✅ Migraciones aplicadas correctamente"
 
+# Comprobar el SQLite real del volumen (/api_login/app/database/users.db en el contenedor)
+echo "Verificando columnas creator en bot_global_config (archivo del volumen)..."
+if ! sudo docker run --rm \
+  -v "${VOLUME_NAME}:/api_login/app/database" \
+  "$IMAGE_NAME" \
+  python -c "
+import os, sqlite3, sys
+db_dir = '/api_login/app/database'
+path = os.path.join(db_dir, 'users.db')
+if not os.path.isfile(path):
+    print('ERROR: no existe', path)
+    sys.exit(2)
+con = sqlite3.connect(path)
+cols = [r[1] for r in con.execute('PRAGMA table_info(bot_global_config)').fetchall()]
+need = [
+    'creator_scheduled_time', 'creator_timezone', 'creator_cycle_time_minutes',
+    'creator_time_config_type', 'creator_accounts_per_cycle',
+]
+missing = [c for c in need if c not in cols]
+if missing:
+    print('ERROR: faltan columnas:', missing)
+    print('Columnas actuales:', cols)
+    sys.exit(1)
+print('OK: columnas creator presentes en', path)
+sys.exit(0)
+"; then
+  echo "ERROR: el volumen ${VOLUME_NAME} no tiene las columnas nuevas en bot_global_config."
+  echo "Si usas balanceador, puede que otra VM sirva el trafico con otra base sin migrar."
+  echo "Diagnostico: sudo docker exec ${CONTAINER_NAME} python -c \"import sqlite3; print([r[1] for r in sqlite3.connect('/api_login/app/database/users.db').execute('PRAGMA table_info(bot_global_config)').fetchall()])\""
+  exit 1
+fi
+
 # Ejecutar contenedor con volumen
 echo "Ejecutando contenedor ($CONTAINER_NAME) en puerto host $APP_PORT..."
 sudo docker run -d \
@@ -169,7 +201,7 @@ TABLES_EXIST=$(sudo docker exec "$CONTAINER_NAME" python -c "
 from sqlalchemy import text
 from app import create_app
 from app.database import db
-app = create_app()
+app, _ = create_app()
 with app.app_context():
     try:
         with db.engine.connect() as conn:
