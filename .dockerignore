@@ -1,0 +1,40 @@
+# Copias de seguridad locales (pueden ser cientos de MB / GB — agotan disco en `docker build`)
+# Varias formas por si el nombre de carpeta difiere entre sistemas
+backups
+backups/
+**/backups/**
+**/backups
+
+# Bases SQLite de desarrollo o copias sueltas (la BD real va en el volumen Docker)
+**/*.db
+*.db
+**/*.db.*
+users.db*
+**/users.db*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Entorno y secretos (pasar con -e o montar, no meter en la imagen)
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

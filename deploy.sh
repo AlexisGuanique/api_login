@@ -45,6 +45,24 @@ sudo docker rm "$CONTAINER_NAME" 2>/dev/null || echo "Contenedor no existía"
 
 # Construir nueva imagen
 echo "Construyendo imagen ($IMAGE_NAME)..."
+
+# Sin .dockerignore en el servidor, `docker build` envía ./backups (varios GB) y agota el disco.
+if [ ! -f .dockerignore ]; then
+    echo "❌ ERROR: No existe .dockerignore en $(pwd)"
+    echo "   Sube/copialo desde el repositorio (misma carpeta que el Dockerfile). Sin él el contexto supera varios GB."
+    exit 1
+fi
+_ignore_bytes=$(wc -c < .dockerignore | tr -d ' ')
+if [ "${_ignore_bytes:-0}" -lt 80 ]; then
+    echo "❌ ERROR: .dockerignore existe pero es demasiado pequeño (${_ignore_bytes} bytes). ¿Archivo vacío o corrupto?"
+    exit 1
+fi
+if ! grep -v '^[[:space:]]*#' .dockerignore | grep -q 'backups'; then
+    echo "❌ ERROR: .dockerignore debe excluir la carpeta backups (p. ej. líneas: backups o backups/)."
+    exit 1
+fi
+echo "✅ .dockerignore OK (${_ignore_bytes} bytes, excluye backups)"
+
 sudo docker build -t "$IMAGE_NAME" .
 
 # Cargar variables de entorno desde .env si existe
