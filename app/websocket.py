@@ -8,8 +8,29 @@ from app.models.bot_browser_presence import BotBrowserPresence
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
+from app.models.bot_logueador_config import BotLogueadorConfig
 import jwt
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+
+def _build_logueador_config_payload(user_id: int) -> dict:
+    cfg = BotLogueadorConfig.query.filter_by(user_id=user_id).first()
+    if cfg:
+        return cfg.to_payload()
+    return {
+        "iterations": 16,
+        "interval_seconds": 7200,
+        "user_agent": "",
+        "ultra_email": None,
+        "ultra_password": None,
+        "use_local_accounts": False,
+        "ultra_login_mode": "sqlite",
+        "run_repetidas": False,
+        "accounts_to_repeat": 5,
+        "repetitions_count": 3,
+        "repetidas_interval_seconds": 7200,
+        "partitions_count": 1,
+    }
 
 
 def register_socketio_handlers(socketio):
@@ -356,6 +377,21 @@ def register_socketio_handlers(socketio):
             print(f"❌ Error en action_completed: {e}")
             import traceback
             traceback.print_exc()
+
+    @socketio.on('get_logueador_config')
+    def handle_get_logueador_config(_data=None):
+        """Devuelve la configuración centralizada del logueador para el bot conectado."""
+        try:
+            bot = Bot.query.filter_by(socket_id=request.sid).first()
+            if not bot:
+                print(f"⚠️  get_logueador_config recibido de socket desconocido: {request.sid}")
+                return {"ok": False, "error": "socket no registrado"}
+
+            payload = _build_logueador_config_payload(bot.user_id)
+            return {"ok": True, "config": payload}
+        except Exception as e:
+            print(f"❌ Error en get_logueador_config: {e}")
+            return {"ok": False, "error": str(e)}
 
     @socketio.on('sync_available_browsers')
     def handle_sync_available_browsers(data):

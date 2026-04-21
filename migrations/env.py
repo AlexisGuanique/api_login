@@ -17,33 +17,22 @@ logger = logging.getLogger('alembic.env')
 
 
 def get_engine():
-    # Intentar usar Flask app primero, luego variables de entorno
+    # Forzar SIEMPRE el engine real de Flask-SQLAlchemy para evitar
+    # desalineación de rutas entre runtime y migraciones.
     try:
-        # this works with Flask-SQLAlchemy<3 and Alchemical
-        return current_app.extensions['migrate'].db.get_engine()
-    except (TypeError, AttributeError):
-        # this works with Flask-SQLAlchemy>=3
+        # Flask-SQLAlchemy>=3
         return current_app.extensions['migrate'].db.engine
-    except:
-        # Fallback: usar variable de entorno o ruta fija
-        import os
-        from sqlalchemy import create_engine
-        database_path = os.getenv('DATABASE_PATH', '/api_login/app/database')
-        return create_engine(f'sqlite:///{database_path}/users.db')
+    except AttributeError:
+        # Compatibilidad Flask-SQLAlchemy<3
+        return current_app.extensions['migrate'].db.get_engine()
 
 
 def get_engine_url():
-    # Intentar usar Flask app primero, luego variables de entorno
     try:
         return get_engine().url.render_as_string(hide_password=False).replace(
             '%', '%%')
     except AttributeError:
         return str(get_engine().url).replace('%', '%%')
-    except:
-        # Fallback: usar variable de entorno o ruta fija
-        import os
-        database_path = os.getenv('DATABASE_PATH', '/api_login/app/database')
-        return f'sqlite:///{database_path}/users.db'
 
 
 # add your model's MetaData object here

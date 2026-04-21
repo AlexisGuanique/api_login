@@ -6,6 +6,7 @@ from app.models.bot_browser_user_agent import BotBrowserUserAgent
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
+from app.models.bot_logueador_config import BotLogueadorConfig
 from app.utils.auth import token_required, session_or_token_required
 from app.utils.bot_preferences import get_preferred_browsers_list
 
@@ -80,6 +81,31 @@ def _build_remote_domain_config(user_id: int) -> dict:
             {"tld": row.tld, "sort_order": int(row.sort_order or 0)}
             for row in tld_rows
         ],
+    }
+
+
+def _build_remote_logueador_config(user_id: int) -> dict:
+    """
+    Configuración centralizada del logueador.
+    Se envía al bot por WebSocket y se usa como fuente de verdad.
+    """
+    cfg = BotLogueadorConfig.query.filter_by(user_id=user_id).first()
+    if cfg:
+        return cfg.to_payload()
+
+    return {
+        "iterations": 16,
+        "interval_seconds": 7200,
+        "user_agent": "",
+        "ultra_email": None,
+        "ultra_password": None,
+        "use_local_accounts": False,
+        "ultra_login_mode": "sqlite",
+        "run_repetidas": False,
+        "accounts_to_repeat": 5,
+        "repetitions_count": 3,
+        "repetidas_interval_seconds": 7200,
+        "partitions_count": 1,
     }
 
 
@@ -194,6 +220,7 @@ def send_command(bot_id):
             'remote_user_agent': user_agent,
             'remote_user_agents': remote_user_agents,
             'remote_domain_config': _build_remote_domain_config(request.current_user.id),
+            'remote_logueador_config': _build_remote_logueador_config(request.current_user.id),
         }
         if command == 'execute_creator':
             payload['remote_creator_time_config'] = _build_remote_creator_time_config(

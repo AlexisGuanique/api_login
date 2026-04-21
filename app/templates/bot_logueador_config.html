@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="card" style="max-width: 780px;">
+  <div class="card__header">
+    <h2 style="margin: 0;">Configuración Global de Logueador</h2>
+  </div>
+
+  <p class="muted" style="margin-top: 0;">
+    Esta configuración se centraliza en el servidor y se sincroniza con tus bots logueadores.
+  </p>
+
+  {% if error %}
+  <div class="alert alert--error" style="margin-bottom: 16px;">{{ error }}</div>
+  {% endif %}
+  {% if success %}
+  <div class="alert alert--success" style="margin-bottom: 16px;">{{ success }}</div>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('web.bot_logueador_config_post') }}" style="display: grid; gap: 14px;">
+    <div style="margin-top: 8px;">
+      <h4 style="margin: 0 0 8px 0;">Credenciales Ultra</h4>
+      <div style="display: grid; gap: 8px;">
+        <label for="ultra_email">Email de Ultra</label>
+        <input id="ultra_email" type="text" class="input" name="ultra_email" value="{{ config.ultra_email or '' }}" placeholder="usuario@correo.com" autocomplete="off">
+
+        <label for="ultra_password">Contraseña de Ultra</label>
+        <input id="ultra_password" type="password" class="input" name="ultra_password" value="{{ config.ultra_password or '' }}" placeholder="••••••••" autocomplete="new-password">
+      </div>
+    </div>
+
+    <div style="margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
+      <h4 style="margin: 0 0 8px 0;">Ciclo normal</h4>
+      <div style="display: grid; gap: 8px;">
+        <label for="iterations">Número de iteraciones</label>
+        <input id="iterations" type="number" class="input" min="1" name="iterations" value="{{ config.iterations or 16 }}">
+
+        <label for="interval_seconds">Tiempo entre rondas (segundos)</label>
+        <input id="interval_seconds" type="number" class="input" min="1" name="interval_seconds" value="{{ config.interval_seconds or 7200 }}">
+
+        <label for="user_agent">User Agent global</label>
+        <input id="user_agent" type="text" class="input" name="user_agent" value="{{ config.user_agent or '' }}" placeholder="Mozilla/5.0 ...">
+      </div>
+    </div>
+
+    <div style="margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
+      <h4 style="margin: 0 0 8px 0;">Modo y origen de cuentas</h4>
+      <div style="display: grid; gap: 10px;">
+        <label for="ultra_login_mode">Modo de logueo en Ultra</label>
+        <select id="ultra_login_mode" name="ultra_login_mode" class="input">
+          <option value="sqlite" {% if (config.ultra_login_mode or 'sqlite') == 'sqlite' %}selected{% endif %}>Logueo con Sqlite (sync a Partitions)</option>
+          <option value="ui" {% if (config.ultra_login_mode or '') == 'ui' %}selected{% endif %}>Logueo con UI</option>
+        </select>
+
+        <label style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" name="use_local_accounts" {% if config.use_local_accounts %}checked{% endif %}>
+          Usar cuentas de la base de datos local (no pedir al servidor)
+        </label>
+
+        <label style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" name="run_repetidas" {% if config.run_repetidas %}checked{% endif %}>
+          Ejecutar modo cuentas repetidas al iniciar
+        </label>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
+      <h4 style="margin: 0 0 8px 0;">Cuentas repetidas</h4>
+      <div style="display: grid; gap: 8px;">
+        <label for="accounts_to_repeat">Cuentas a repetir</label>
+        <input id="accounts_to_repeat" type="number" class="input" min="1" name="accounts_to_repeat" value="{{ config.accounts_to_repeat or 5 }}">
+
+        <label for="repetitions_count">Cantidad de repeticiones</label>
+        <input id="repetitions_count" type="number" class="input" min="1" name="repetitions_count" value="{{ config.repetitions_count or 3 }}">
+
+        <label for="repetidas_interval_seconds">Tiempo entre rondas de repetidas (segundos)</label>
+        <input id="repetidas_interval_seconds" type="number" class="input" min="1" name="repetidas_interval_seconds" value="{{ config.repetidas_interval_seconds or 7200 }}">
+
+        <label for="partitions_count">Mini-ciclos por ronda (particiones)</label>
+        <input id="partitions_count" type="number" class="input" min="1" name="partitions_count" value="{{ config.partitions_count or 1 }}">
+      </div>
+    </div>
+
+    <div style="margin-top: 8px;">
+      <button type="submit" class="button button--primary">Guardar configuración global de logueador</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -21,6 +21,7 @@ from app.models.bot_browser_user_agent import BotBrowserUserAgent
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
+from app.models.bot_logueador_config import BotLogueadorConfig
 from app.utils.bot_preferences import get_preferred_browsers_list
 from app.services.encrypt import encrypt_service
 from app.services.proxy_providers import DataimpulseProvider
@@ -217,6 +218,27 @@ def _render_bot_config_page(
         domain_cfg=domain_cfg,
         domain_entries=domain_entries,
         random_tld_entries=random_tld_entries,
+        error=error,
+        success=success,
+    ), status_code
+
+
+def _render_bot_logueador_config_page(
+    user: User,
+    *,
+    error: str | None = None,
+    success: str | None = None,
+    status_code: int = 200,
+):
+    cfg = BotLogueadorConfig.query.filter_by(user_id=user.id).first()
+    if not cfg:
+        cfg = BotLogueadorConfig(user_id=user.id)
+        db.session.add(cfg)
+        db.session.commit()
+    return render_template(
+        "bot_logueador_config.html",
+        user=user,
+        config=cfg,
         error=error,
         success=success,
     ), status_code
@@ -781,6 +803,75 @@ def bot_config_post():
         user,
         selected_browsers_override=get_preferred_browsers_list(browser_config),
         success=success_msg,
+    )
+
+
+@web_bp.get("/bot-logueador-config")
+def bot_logueador_config():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    return _render_bot_logueador_config_page(user)
+
+
+@web_bp.post("/bot-logueador-config")
+def bot_logueador_config_post():
+    guard = _require_login()
+    if guard:
+        return guard
+
+    user = _current_user()
+    if not user:
+        session.clear()
+        return redirect(url_for("web.login"))
+
+    cfg = BotLogueadorConfig.query.filter_by(user_id=user.id).first()
+    if not cfg:
+        cfg = BotLogueadorConfig(user_id=user.id)
+        db.session.add(cfg)
+
+    try:
+        iterations = max(1, int(request.form.get("iterations") or 16))
+        interval_seconds = max(1, int(request.form.get("interval_seconds") or 7200))
+        accounts_to_repeat = max(1, int(request.form.get("accounts_to_repeat") or 5))
+        repetitions_count = max(1, int(request.form.get("repetitions_count") or 3))
+        repetidas_interval_seconds = max(1, int(request.form.get("repetidas_interval_seconds") or 7200))
+        partitions_count = max(1, int(request.form.get("partitions_count") or 1))
+    except ValueError:
+        db.session.rollback()
+        return _render_bot_logueador_config_page(
+            user,
+            error="Todos los campos numéricos deben ser enteros válidos.",
+            status_code=400,
+        )
+
+    login_mode = (request.form.get("ultra_login_mode") or "sqlite").strip().lower()
+    if login_mode not in ("sqlite", "ui"):
+        login_mode = "sqlite"
+
+    cfg.iterations = iterations
+    cfg.interval_seconds = interval_seconds
+    cfg.user_agent = (request.form.get("user_agent") or "").strip()
+    cfg.ultra_email = (request.form.get("ultra_email") or "").strip() or None
+    cfg.ultra_password = (request.form.get("ultra_password") or "").strip() or None
+    cfg.use_local_accounts = request.form.get("use_local_accounts") == "on"
+    cfg.ultra_login_mode = login_mode
+    cfg.run_repetidas = request.form.get("run_repetidas") == "on"
+    cfg.accounts_to_repeat = accounts_to_repeat
+    cfg.repetitions_count = repetitions_count
+    cfg.repetidas_interval_seconds = repetidas_interval_seconds
+    cfg.partitions_count = partitions_count
+
+    db.session.commit()
+    return _render_bot_logueador_config_page(
+        user,
+        success="Configuración global del logueador guardada correctamente.",
     )
 
 

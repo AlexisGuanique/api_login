@@ -30,6 +30,7 @@ from app.models.bot_browser_user_agent import BotBrowserUserAgent
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
+from app.models.bot_logueador_config import BotLogueadorConfig
 
 load_dotenv()
 
