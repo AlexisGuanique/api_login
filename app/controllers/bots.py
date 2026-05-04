@@ -2,7 +2,6 @@ from flask import Blueprint, request, jsonify, current_app
 from app.database import db
 from app.models.bot import Bot
 from app.models.bot_global_config import BotGlobalConfig
-from app.models.bot_browser_user_agent import BotBrowserUserAgent
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
@@ -174,15 +173,6 @@ def send_command(bot_id):
         global_config = BotGlobalConfig.query.filter_by(user_id=request.current_user.id).first()
         preferred_browsers = get_preferred_browsers_list(global_config)
         preferred_browser = preferred_browsers[0] if preferred_browsers else None
-        remote_user_agents: dict[str, str] = {}
-        for name in preferred_browsers:
-            ua_cfg = BotBrowserUserAgent.query.filter_by(
-                user_id=request.current_user.id,
-                browser_name=name,
-            ).first()
-            if ua_cfg and (ua_cfg.user_agent or "").strip():
-                remote_user_agents[name] = (ua_cfg.user_agent or "").strip()
-        user_agent = remote_user_agents.get(preferred_browser) if preferred_browser else None
 
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
@@ -191,8 +181,9 @@ def send_command(bot_id):
             'bot_id': bot_id,
             'preferred_browser': preferred_browser,
             'preferred_browsers': preferred_browsers,
-            'remote_user_agent': user_agent,
-            'remote_user_agents': remote_user_agents,
+            # User-Agent por cuenta: viene en cada account al guardar/consultar; el bot no usa UA por navegador desde servidor.
+            'remote_user_agent': None,
+            'remote_user_agents': {},
             'remote_domain_config': _build_remote_domain_config(request.current_user.id),
         }
         if command == 'execute_creator':

@@ -17,7 +17,6 @@ from app.models.vps import VPS
 from app.models.contabo_config import ContaboConfig
 from app.models.bot_global_config import BotGlobalConfig
 from app.models.bot_browser_presence import BotBrowserPresence
-from app.models.bot_browser_user_agent import BotBrowserUserAgent
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry
@@ -97,26 +96,6 @@ def _build_bot_compatibility_matrix(user_id: int, selected_browsers: list[str]):
     return browser_headers, rows, selected_exists_in_any_bot
 
 
-def _get_user_agent_map(user_id: int, browser_names: list[str]) -> dict[str, str]:
-    if not browser_names:
-        return {}
-    rows = (
-        BotBrowserUserAgent.query
-        .filter_by(user_id=user_id)
-        .filter(BotBrowserUserAgent.browser_name.in_(browser_names))
-        .all()
-    )
-    return {row.browser_name: row.user_agent for row in rows}
-
-
-def _get_missing_user_agent_browsers(browser_names: list[str], user_agent_map: dict[str, str]) -> list[str]:
-    missing = []
-    for name in browser_names:
-        if not (user_agent_map.get(name) or "").strip():
-            missing.append(name)
-    return missing
-
-
 def _normalize_domain_text(value: str) -> str:
     domain = (value or "").strip()
     if not domain:
@@ -183,7 +162,6 @@ def _render_bot_config_page(
     error: str | None = None,
     success: str | None = None,
     selected_browsers_override: list[str] | None = None,
-    user_agent_map_override: dict[str, str] | None = None,
     status_code: int = 200,
 ):
     browser_config = BotGlobalConfig.query.filter_by(user_id=user.id).first()
@@ -196,10 +174,6 @@ def _render_bot_config_page(
     matrix_headers, matrix_rows, selected_exists_in_any_bot = _build_bot_compatibility_matrix(
         user.id, selected_browsers
     )
-    user_agent_map = _get_user_agent_map(user.id, matrix_headers)
-    if user_agent_map_override:
-        user_agent_map.update(user_agent_map_override)
-    missing_ua_browsers = _get_missing_user_agent_browsers(selected_browsers, user_agent_map)
 
     domain_cfg, domain_entries, random_tld_entries = _get_domain_config_bundle(user.id)
 
@@ -212,8 +186,6 @@ def _render_bot_config_page(
         matrix_headers=matrix_headers,
         matrix_rows=matrix_rows,
         selected_exists_in_any_bot=selected_exists_in_any_bot,
-        user_agent_map=user_agent_map,
-        missing_ua_browsers=missing_ua_browsers,
         domain_cfg=domain_cfg,
         domain_entries=domain_entries,
         random_tld_entries=random_tld_entries,
@@ -693,32 +665,6 @@ def bot_config_post():
                 status_code=400,
             )
 
-    # UA por fila del catálogo (índice alineado con browser_options en la plantilla)
-    missing_ua: list[str] = []
-    for i, b in enumerate(browser_options):
-        ua = (request.form.get(f"ua_{i}") or "").strip()
-        if b not in selected_browsers:
-            continue
-        if ua:
-            continue
-        existing = BotBrowserUserAgent.query.filter_by(
-            user_id=user.id,
-            browser_name=b,
-        ).first()
-        if not (existing and (existing.user_agent or "").strip()):
-            missing_ua.append(b)
-
-    if missing_ua:
-        return _render_bot_config_page(
-            user,
-            error=(
-                "Debes configurar User-Agent en el servidor para cada navegador global marcado. "
-                f"Falta: {', '.join(missing_ua)}"
-            ),
-            selected_browsers_override=selected_browsers,
-            status_code=400,
-        )
-
     if selected_browsers:
         browser_config.preferred_browsers_json = json.dumps(selected_browsers)
         browser_config.preferred_browser = selected_browsers[0]
@@ -750,32 +696,11 @@ def bot_config_post():
     tz = (request.form.get("creator_timezone") or "").strip()
     browser_config.creator_timezone = tz or None
 
-    for i, b in enumerate(browser_options):
-        ua = (request.form.get(f"ua_{i}") or "").strip()
-        existing = BotBrowserUserAgent.query.filter_by(
-            user_id=user.id,
-            browser_name=b,
-        ).first()
-        if ua:
-            if existing:
-                existing.user_agent = ua
-            else:
-                db.session.add(
-                    BotBrowserUserAgent(
-                        user_id=user.id,
-                        browser_name=b,
-                        user_agent=ua,
-                    )
-                )
-        else:
-            if existing and b not in selected_browsers:
-                db.session.delete(existing)
-
     db.session.commit()
     success_msg = (
-        "Configuración global guardada (navegadores, User-Agent y modo de dominios)."
+        "Configuración global guardada (navegadores y modo de dominios)."
         if request.form.get("domain_mode") is not None
-        else "Configuración de navegador(es) y User-Agent guardada."
+        else "Configuración de navegador(es) guardada."
     )
     return _render_bot_config_page(
         user,

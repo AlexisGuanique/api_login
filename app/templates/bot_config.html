@@ -46,36 +46,10 @@
       {% endif %}
     </fieldset>
 
-    <div style="margin-top: 8px;">
-      <h4 style="margin: 0 0 8px 0;">User-Agent por navegador (servidor)</h4>
-      <p class="muted" style="margin-top: 0;">
-        Configura el User-Agent de cada navegador que vayas a marcar como global. Los demás puedes dejarlos vacíos.
-      </p>
-      {% if missing_ua_browsers and selected_browsers %}
-      <div class="muted" style="margin-bottom: 10px;">
-        Advertencia: hay navegadores globales marcados sin User-Agent: {{ missing_ua_browsers|join(', ') }}.
-      </div>
-      {% endif %}
-      {% if browser_options %}
-      <div style="display: grid; gap: 12px;">
-        {% for browser_name in browser_options %}
-        <div class="ua-row" style="display: grid; gap: 6px;">
-          <label for="ua_{{ loop.index0 }}">{{ browser_name }}</label>
-          <input
-            id="ua_{{ loop.index0 }}"
-            type="text"
-            name="ua_{{ loop.index0 }}"
-            class="input"
-            placeholder="User-Agent para {{ browser_name }}"
-            value="{{ user_agent_map.get(browser_name, '') or '' }}"
-          />
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="muted">Sin catálogo de navegadores aún.</div>
-      {% endif %}
-    </div>
+    <p class="muted" style="margin-top: 8px;">
+      El <strong>User-Agent</strong> de cada sesión se envía <strong>junto a cada cuenta</strong> al guardarlas (API <code>/api/accounts/save/…</code>);
+      el bot lo usa al consumir la cola de cuentas. Ya no se configura por navegador en esta pantalla.
+    </p>
 
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
       <h3 style="margin: 0 0 8px 0;">Creator: ciclo y hora (servidor)</h3>

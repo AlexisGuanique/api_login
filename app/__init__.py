@@ -26,7 +26,6 @@ from app.models.contabo_config import ContaboConfig
 from app.models.bot_global_config import BotGlobalConfig
 from app.models.bot_browser_catalog import BotBrowserCatalog
 from app.models.bot_browser_presence import BotBrowserPresence
-from app.models.bot_browser_user_agent import BotBrowserUserAgent
 from app.models.bot_domain_global_config import BotDomainGlobalConfig
 from app.models.bot_domain_entry import BotDomainEntry
 from app.models.bot_random_tld_entry import BotRandomTldEntry

@@ -195,7 +195,7 @@ if [ "$CONTAINER_STATUS" != "running" ]; then
 fi
 echo "✅ Contenedor está corriendo correctamente"
 
-# Verificar si las tablas ya existen antes de aplicar migraciones
+# Post-arranque: comprobaciones (las migraciones ya se aplicaron arriba, antes de docker run).
 echo "Verificando estado de la base de datos..."
 TABLES_EXIST=$(sudo docker exec "$CONTAINER_NAME" python -c "
 from sqlalchemy import text
@@ -283,15 +283,11 @@ with app.app_context():
     else:
         print('✅ Tabla contabo_config existe')
     
-    # Si se eliminaron tablas, resetear alembic_version para forzar re-aplicación
+    # No borrar alembic_version aquí: las migraciones ya se aplicaron antes de arrancar el
+    # contenedor. Vaciar alembic_version deja el SQLite con esquema "head" pero sin revisión
+    # registrada y el siguiente deploy/migrate puede fallar o reaplicar mal.
     if tables_fixed:
-        with db.engine.connect() as conn:
-            try:
-                conn.execute(text('DELETE FROM alembic_version'))
-                conn.commit()
-                print('🔄 Estado de Alembic reseteado para forzar re-aplicación de migraciones')
-            except:
-                pass
+        print('⚠️  Se corrigieron tablas (drop). Revisa el esquema y ejecuta migraciones/backup si hace falta.')
     
     print('FIXED' if tables_fixed else 'OK')
 " 2>/dev/null || echo "OK")

@@ -148,7 +148,17 @@ def save_accounts(user_id):
     valid_accounts = []
     
     for i, account in enumerate(accounts_list):
-        missing_fields = [field for field in required_fields if field not in account or not account[field]]
+        missing_fields = []
+        for field in required_fields:
+            if field not in account:
+                missing_fields.append(field)
+                continue
+            val = account[field]
+            if field == "user_agent":
+                if not (isinstance(val, str) and val.strip()):
+                    missing_fields.append(field)
+            elif not val:
+                missing_fields.append(field)
         if missing_fields:
             invalid_accounts.append({
                 "index": i,
@@ -207,7 +217,7 @@ def save_accounts(user_id):
                 }), 400
             
             new_account = Account(
-                user_agent=account_data['user_agent'],
+                user_agent=(account_data["user_agent"] or "").strip(),
                 email=account_data['email'],
                 password=account_data['password'],
                 cookie=account_data['cookie'],

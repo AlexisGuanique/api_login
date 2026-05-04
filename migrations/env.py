@@ -104,16 +104,25 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
-    conf_args = current_app.extensions['migrate'].configure_args
+    conf_args = dict(current_app.extensions["migrate"].configure_args)
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
 
     connectable = get_engine()
 
-    with connectable.connect() as connection:
+    # SQLAlchemy 2: usar begin() para confirmar al salir del bloque. Con connect() alone,
+    # el cierre de la conexión puede hacer rollback del UPDATE de alembic_version mientras
+    # parte del DDL en SQLite ya quedó aplicado (síntoma: log "Running upgrade" pero
+    # alembic_version y columnas sin cambiar).
+    with connectable.begin() as connection:
         # SQLite: esperar hasta 30s si otro proceso tiene la BD (mitiga locks puntuales)
         if connection.dialect.name == "sqlite":
             connection.execute(text("PRAGMA busy_timeout = 30000"))
+            # Flask-Migrate activa render_as_batch=True en SQLite; nuestras migraciones usan
+            # op.add_column directo y con batch el esquema/versión no quedaba aplicado.
+            conf_args["render_as_batch"] = False
+            if not conf_args.get("transaction_per_migration"):
+                conf_args["transaction_per_migration"] = True
 
         context.configure(
             connection=connection,
