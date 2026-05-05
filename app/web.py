@@ -107,6 +107,45 @@ def _normalize_tld_text(value: str) -> str:
     return (value or "").strip().lstrip(".").lower()
 
 
+def _parse_creator_user_agents_bulk(raw_value: str) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for line in (raw_value or "").splitlines():
+        ua = line.strip()
+        if not ua:
+            continue
+        key = ua.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(ua)
+    return result
+
+
+def _parse_creator_user_agents_file(file_bytes: bytes) -> list[str]:
+    if not file_bytes:
+        return []
+    # Soporta UTF-8 y tolera bytes inválidos del archivo subido.
+    raw_text = file_bytes.decode("utf-8", errors="ignore")
+    return _parse_creator_user_agents_bulk(raw_text)
+
+
+def _get_creator_user_agents_from_config(cfg: BotGlobalConfig | None) -> list[str]:
+    if not cfg or not cfg.creator_user_agents_json:
+        return []
+    try:
+        data = json.loads(cfg.creator_user_agents_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    result: list[str] = []
+    for item in data:
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+    return result
+
+
 def _apply_domain_global_from_form(user: User) -> None:
     """Actualiza BotDomainGlobalConfig desde request.form (sin commit)."""
     domain_mode = (request.form.get("domain_mode") or "33mail").strip()
@@ -176,6 +215,7 @@ def _render_bot_config_page(
     )
 
     domain_cfg, domain_entries, random_tld_entries = _get_domain_config_bundle(user.id)
+    creator_user_agents = _get_creator_user_agents_from_config(browser_config)
 
     return render_template(
         "bot_config.html",
@@ -189,6 +229,8 @@ def _render_bot_config_page(
         domain_cfg=domain_cfg,
         domain_entries=domain_entries,
         random_tld_entries=random_tld_entries,
+        creator_user_agents_text="\n".join(creator_user_agents),
+        creator_user_agents_count=len(creator_user_agents),
         error=error,
         success=success,
     ), status_code
@@ -695,6 +737,24 @@ def bot_config_post():
     browser_config.creator_scheduled_time = st or None
     tz = (request.form.get("creator_timezone") or "").strip()
     browser_config.creator_timezone = tz or None
+    clear_creator_user_agents = request.form.get("clear_creator_user_agents") == "1"
+    if clear_creator_user_agents:
+        browser_config.creator_user_agents_json = None
+    else:
+        ua_file = request.files.get("creator_user_agents_file")
+        if ua_file and ua_file.filename:
+            filename = (ua_file.filename or "").strip().lower()
+            if not filename.endswith(".txt"):
+                return _render_bot_config_page(
+                    user,
+                    error="El archivo de User-Agents debe ser .txt",
+                    selected_browsers_override=selected_browsers,
+                    status_code=400,
+                )
+            creator_user_agents = _parse_creator_user_agents_file(ua_file.read())
+            browser_config.creator_user_agents_json = (
+                json.dumps(creator_user_agents) if creator_user_agents else None
+            )
 
     db.session.commit()
     success_msg = (

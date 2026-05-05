@@ -18,7 +18,7 @@
   {% endif %}
   {% set current_domain_mode = '33mail' if domain_cfg.is33mail else ('random' if domain_cfg.random_domains else 'custom') %}
 
-  <form id="bot-config-form" method="POST" action="{{ url_for('web.bot_config_post') }}" style="display: grid; gap: 12px;">
+  <form id="bot-config-form" method="POST" action="{{ url_for('web.bot_config_post') }}" enctype="multipart/form-data" style="display: grid; gap: 12px;">
     <fieldset style="border: 0; padding: 0; margin: 0;">
       <legend class="muted" style="padding: 0; margin-bottom: 8px;">Navegadores globales para ejecutar bots</legend>
       <p class="muted" style="margin-top: 0;">
@@ -50,6 +50,30 @@
       El <strong>User-Agent</strong> de cada sesión se envía <strong>junto a cada cuenta</strong> al guardarlas (API <code>/api/accounts/save/…</code>);
       el bot lo usa al consumir la cola de cuentas. Ya no se configura por navegador en esta pantalla.
     </p>
+
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
+      <h3 style="margin: 0 0 8px 0;">Creator: User-Agents masivos (servidor)</h3>
+      <p class="muted" style="margin-top: 0;">
+        Sube un archivo <code>.txt</code> con <strong>un User-Agent por línea</strong>. Al ejecutar creator, el servidor envía la lista completa al bot.
+      </p>
+      <label for="creator_user_agents_file">Archivo .txt de User-Agents</label>
+      <input
+        id="creator_user_agents_file"
+        name="creator_user_agents_file"
+        type="file"
+        class="input"
+        accept=".txt,text/plain"
+      />
+      <p class="muted" style="margin: 6px 0 0 0;">
+        Actualmente guardados: <strong>{{ creator_user_agents_count or 0 }}</strong>.
+        Si no subes archivo, se conserva la lista actual.
+      </p>
+      <div style="margin-top: 8px;">
+        <button type="submit" class="button button--danger" name="clear_creator_user_agents" value="1">
+          Vaciar lista de User-Agents
+        </button>
+      </div>
+    </div>
 
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
       <h3 style="margin: 0 0 8px 0;">Creator: ciclo y hora (servidor)</h3>

@@ -1,3 +1,6 @@
+import json
+import os
+
 from flask import Blueprint, request, jsonify, current_app
 from app.database import db
 from app.models.bot import Bot
@@ -44,6 +47,25 @@ def _build_remote_creator_time_config(user_id: int) -> dict:
         "time_config_type": raw_type,
         "accounts_per_cycle": int(apc),
     }
+
+
+def _build_remote_creator_user_agents(user_id: int) -> list[str]:
+    g = BotGlobalConfig.query.filter_by(user_id=user_id).first()
+    if not g or not g.creator_user_agents_json:
+        return []
+    try:
+        data = json.loads(g.creator_user_agents_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    result: list[str] = []
+    for item in data:
+        if isinstance(item, str):
+            ua = item.strip()
+            if ua:
+                result.append(ua)
+    return result
 
 
 def _build_remote_domain_config(user_id: int) -> dict:
@@ -174,6 +196,8 @@ def send_command(bot_id):
         preferred_browsers = get_preferred_browsers_list(global_config)
         preferred_browser = preferred_browsers[0] if preferred_browsers else None
 
+        creator_user_agents = _build_remote_creator_user_agents(request.current_user.id)
+
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
         payload = {
@@ -181,15 +205,20 @@ def send_command(bot_id):
             'bot_id': bot_id,
             'preferred_browser': preferred_browser,
             'preferred_browsers': preferred_browsers,
-            # User-Agent por cuenta: viene en cada account al guardar/consultar; el bot no usa UA por navegador desde servidor.
-            'remote_user_agent': None,
-            'remote_user_agents': {},
             'remote_domain_config': _build_remote_domain_config(request.current_user.id),
         }
         if command == 'execute_creator':
             payload['remote_creator_time_config'] = _build_remote_creator_time_config(
                 request.current_user.id
             )
+            payload['remote_creator_user_agents'] = creator_user_agents
+            # Debug temporal: habilitar con BOT_CREATOR_UA_DEBUG=true
+            if os.getenv("BOT_CREATOR_UA_DEBUG", "false").lower() == "true":
+                sample = creator_user_agents[:3]
+                print(
+                    f"🐞 DEBUG creator UAs -> user_id={request.current_user.id}, "
+                    f"bot_id={bot_id}, count={len(creator_user_agents)}, sample={sample}"
+                )
         socketio.emit('command', payload, room=bot.socket_id)
         
         # Devolver el estado actual del bot para sincronizar la UI
