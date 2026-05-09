@@ -7,9 +7,8 @@ Esta guía documenta cómo recibe los User-Agents el bot al iniciar el proceso c
 Hay dos fuentes complementarias:
 
 1. **Lista global de creator** (configuración web):
-   - Se carga desde `web/bot-config` subiendo un archivo `.txt`.
-   - Formato: **1 User-Agent por línea**.
-   - Se guarda en BD en `bot_global_config.creator_user_agents_json`.
+   - Se edita en `web/bot-config` en el cuadro de texto (un User-Agent por línea).
+   - Lo mostrado es lo guardado en servidor; al guardar se persiste en `bot_global_config.creator_user_agents_json`.
 
 2. **User-Agent por cuenta**:
    - Cada cuenta en `/api/accounts/save/<user_id>` lleva su `user_agent`.
@@ -58,9 +57,8 @@ Prioridad sugerida para el bot creator:
 1. Usar `remote_creator_user_agents` si viene con elementos.
 2. Además, para ejecución por cuenta, usar el `user_agent` incluido en cada account obtenida por `/api/accounts/next/<user_id>`.
 
-## 4) Formato del archivo `.txt` de carga
+## 4) Formato en la pantalla de configuración
 
-- UTF-8 recomendado.
 - Una línea = un User-Agent.
 - Líneas vacías se ignoran.
 - Duplicados se eliminan automáticamente (comparación case-insensitive).

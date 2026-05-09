@@ -122,14 +122,6 @@ def _parse_creator_user_agents_bulk(raw_value: str) -> list[str]:
     return result
 
 
-def _parse_creator_user_agents_file(file_bytes: bytes) -> list[str]:
-    if not file_bytes:
-        return []
-    # Soporta UTF-8 y tolera bytes inválidos del archivo subido.
-    raw_text = file_bytes.decode("utf-8", errors="ignore")
-    return _parse_creator_user_agents_bulk(raw_text)
-
-
 def _get_creator_user_agents_from_config(cfg: BotGlobalConfig | None) -> list[str]:
     if not cfg or not cfg.creator_user_agents_json:
         return []
@@ -741,20 +733,11 @@ def bot_config_post():
     if clear_creator_user_agents:
         browser_config.creator_user_agents_json = None
     else:
-        ua_file = request.files.get("creator_user_agents_file")
-        if ua_file and ua_file.filename:
-            filename = (ua_file.filename or "").strip().lower()
-            if not filename.endswith(".txt"):
-                return _render_bot_config_page(
-                    user,
-                    error="El archivo de User-Agents debe ser .txt",
-                    selected_browsers_override=selected_browsers,
-                    status_code=400,
-                )
-            creator_user_agents = _parse_creator_user_agents_file(ua_file.read())
-            browser_config.creator_user_agents_json = (
-                json.dumps(creator_user_agents) if creator_user_agents else None
-            )
+        creator_user_agents_raw = request.form.get("creator_user_agents_bulk") or ""
+        creator_user_agents = _parse_creator_user_agents_bulk(creator_user_agents_raw)
+        browser_config.creator_user_agents_json = (
+            json.dumps(creator_user_agents) if creator_user_agents else None
+        )
 
     db.session.commit()
     success_msg = (

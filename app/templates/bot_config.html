@@ -18,7 +18,7 @@
   {% endif %}
   {% set current_domain_mode = '33mail' if domain_cfg.is33mail else ('random' if domain_cfg.random_domains else 'custom') %}
 
-  <form id="bot-config-form" method="POST" action="{{ url_for('web.bot_config_post') }}" enctype="multipart/form-data" style="display: grid; gap: 12px;">
+  <form id="bot-config-form" method="POST" action="{{ url_for('web.bot_config_post') }}" style="display: grid; gap: 12px;">
     <fieldset style="border: 0; padding: 0; margin: 0;">
       <legend class="muted" style="padding: 0; margin-bottom: 8px;">Navegadores globales para ejecutar bots</legend>
       <p class="muted" style="margin-top: 0;">
@@ -52,21 +52,25 @@
     </p>
 
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
-      <h3 style="margin: 0 0 8px 0;">Creator: User-Agents masivos (servidor)</h3>
+      <h3 style="margin: 0 0 8px 0;">Creator: User-Agents en servidor</h3>
       <p class="muted" style="margin-top: 0;">
-        Sube un archivo <code>.txt</code> con <strong>un User-Agent por línea</strong>. Al ejecutar creator, el servidor envía la lista completa al bot.
+        Lo que ves aquí es lo guardado en el servidor. Pega o edita <strong>un User-Agent por línea</strong> y pulsa «Guardar configuración global».
+        Al ejecutar creator se envía la lista completa al bot.
       </p>
-      <label for="creator_user_agents_file">Archivo .txt de User-Agents</label>
-      <input
-        id="creator_user_agents_file"
-        name="creator_user_agents_file"
-        type="file"
+      <p class="muted" style="margin: 0 0 6px 0;">
+        Cantidad actual: <strong>{{ creator_user_agents_count or 0 }}</strong>.
+      </p>
+      <label for="creator_user_agents_bulk">Lista de User-Agents</label>
+      <textarea
+        id="creator_user_agents_bulk"
+        name="creator_user_agents_bulk"
         class="input"
-        accept=".txt,text/plain"
-      />
+        rows="10"
+        placeholder="Mozilla/5.0 ...&#10;Mozilla/5.0 ..."
+        style="width: 100%; min-height: 180px; resize: vertical; font-family: inherit;"
+      >{{ creator_user_agents_text or '' }}</textarea>
       <p class="muted" style="margin: 6px 0 0 0;">
-        Actualmente guardados: <strong>{{ creator_user_agents_count or 0 }}</strong>.
-        Si no subes archivo, se conserva la lista actual.
+        Deja el cuadro vacío y guarda para borrar la lista (o usa el botón de vaciar).
       </p>
       <div style="margin-top: 8px;">
         <button type="submit" class="button button--danger" name="clear_creator_user_agents" value="1">
@@ -232,7 +236,7 @@
   </div>
 </section>
 
-<section id="random-tlds-section" class="card" style="margin-top: 16px;{% if current_domain_mode != 'random' %} display: none;{% endif %}">
+<section id="random-tlds-section" class="card" style="margin-top: 16px;" {% if current_domain_mode != 'random' %}hidden{% endif %}>
   <div class="card__header">
     <h3 style="margin: 0;">Terminaciones para dominios aleatorios (TLD)</h3>
   </div>
@@ -365,7 +369,7 @@
       const mode = (modeSelect.value || '33mail').trim();
       if (customOptions) customOptions.style.display = mode === 'custom' ? 'block' : 'none';
       if (customSection) customSection.style.display = mode === 'custom' ? 'block' : 'none';
-      if (tldSection) tldSection.style.display = mode === 'random' ? 'block' : 'none';
+      if (tldSection) tldSection.hidden = mode !== 'random';
     }
 
     modeSelect.addEventListener('change', toggleDomainBlocks);
