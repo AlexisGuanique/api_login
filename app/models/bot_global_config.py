@@ -15,8 +15,10 @@ class BotGlobalConfig(db.Model):
     creator_cycle_time_minutes = db.Column(db.Integer, nullable=True)
     creator_time_config_type = db.Column(db.String(20), nullable=True)
     creator_accounts_per_cycle = db.Column(db.Integer, nullable=True)
-    # JSON array de User-Agents para creator, ej. ["UA1", "UA2", ...]
+    # JSON array de User-Agents para creator (legacy / respaldo)
     creator_user_agents_json = db.Column(db.Text, nullable=True)
+    # JSON object nombre_navegador -> UA, ej. {"BraveNormal": "Mozilla/5.0 ...", ...}
+    creator_user_agents_by_browser_json = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

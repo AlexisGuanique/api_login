@@ -14,9 +14,20 @@ accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
 
 
 def _creator_user_agent_pool(user_id: int) -> list[str]:
-    """Lista de UAs guardados en bot-config (creator) para ese usuario."""
+    """UAs de creator en servidor: prioriza mapa por navegador; si no, lista legacy."""
     cfg = BotGlobalConfig.query.filter_by(user_id=user_id).first()
-    if not cfg or not cfg.creator_user_agents_json:
+    if not cfg:
+        return []
+    if cfg.creator_user_agents_by_browser_json:
+        try:
+            d = json.loads(cfg.creator_user_agents_by_browser_json)
+        except (TypeError, ValueError):
+            d = None
+        if isinstance(d, dict):
+            vals = [v.strip() for v in d.values() if isinstance(v, str) and v.strip()]
+            if vals:
+                return vals
+    if not cfg.creator_user_agents_json:
         return []
     try:
         data = json.loads(cfg.creator_user_agents_json)
@@ -178,7 +189,7 @@ def save_accounts(user_id):
         return jsonify({
             "error": (
                 "force_creator_pool_user_agents está activo pero no hay User-Agents en servidor. "
-                "Configúralos en /web/bot-config (lista de creator)."
+                "Configúralos en /web/bot-config (User-Agent por navegador en creator)."
             ),
         }), 400
     for i, account in enumerate(accounts_list):

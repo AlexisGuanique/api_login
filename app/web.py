@@ -107,35 +107,23 @@ def _normalize_tld_text(value: str) -> str:
     return (value or "").strip().lstrip(".").lower()
 
 
-def _parse_creator_user_agents_bulk(raw_value: str) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for line in (raw_value or "").splitlines():
-        ua = line.strip()
-        if not ua:
-            continue
-        key = ua.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(ua)
-    return result
-
-
-def _get_creator_user_agents_from_config(cfg: BotGlobalConfig | None) -> list[str]:
-    if not cfg or not cfg.creator_user_agents_json:
-        return []
+def _get_creator_user_agents_by_browser_map(cfg: BotGlobalConfig | None) -> dict[str, str]:
+    if not cfg or not cfg.creator_user_agents_by_browser_json:
+        return {}
     try:
-        data = json.loads(cfg.creator_user_agents_json)
+        data = json.loads(cfg.creator_user_agents_by_browser_json)
     except (TypeError, ValueError):
-        return []
-    if not isinstance(data, list):
-        return []
-    result: list[str] = []
-    for item in data:
-        if isinstance(item, str) and item.strip():
-            result.append(item.strip())
-    return result
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in data.items():
+        if isinstance(k, str) and isinstance(v, str):
+            kk = k.strip()
+            vv = v.strip()
+            if kk and vv:
+                out[kk] = vv
+    return out
 
 
 def _apply_domain_global_from_form(user: User) -> None:
@@ -207,7 +195,7 @@ def _render_bot_config_page(
     )
 
     domain_cfg, domain_entries, random_tld_entries = _get_domain_config_bundle(user.id)
-    creator_user_agents = _get_creator_user_agents_from_config(browser_config)
+    creator_ua_by_browser = _get_creator_user_agents_by_browser_map(browser_config)
 
     return render_template(
         "bot_config.html",
@@ -221,8 +209,8 @@ def _render_bot_config_page(
         domain_cfg=domain_cfg,
         domain_entries=domain_entries,
         random_tld_entries=random_tld_entries,
-        creator_user_agents_text="\n".join(creator_user_agents),
-        creator_user_agents_count=len(creator_user_agents),
+        creator_ua_by_browser=creator_ua_by_browser,
+        creator_ua_configured_count=len(creator_ua_by_browser),
         error=error,
         success=success,
     ), status_code
@@ -732,12 +720,37 @@ def bot_config_post():
     clear_creator_user_agents = request.form.get("clear_creator_user_agents") == "1"
     if clear_creator_user_agents:
         browser_config.creator_user_agents_json = None
+        browser_config.creator_user_agents_by_browser_json = None
     else:
-        creator_user_agents_raw = request.form.get("creator_user_agents_bulk") or ""
-        creator_user_agents = _parse_creator_user_agents_bulk(creator_user_agents_raw)
-        browser_config.creator_user_agents_json = (
-            json.dumps(creator_user_agents) if creator_user_agents else None
+        by_browser: dict[str, str] = {}
+        for i, b in enumerate(browser_options):
+            ua = (request.form.get(f"creator_ua_{i}") or "").strip()
+            if ua:
+                by_browser[b] = ua
+        if selected_browsers:
+            missing_ua = []
+            for b in selected_browsers:
+                try:
+                    idx = browser_options.index(b)
+                except ValueError:
+                    continue
+                if not (request.form.get(f"creator_ua_{idx}") or "").strip():
+                    missing_ua.append(b)
+            if missing_ua:
+                return _render_bot_config_page(
+                    user,
+                    error=(
+                        "Cada navegador global marcado debe tener User-Agent en servidor. "
+                        f"Falta: {', '.join(missing_ua)}"
+                    ),
+                    selected_browsers_override=selected_browsers,
+                    status_code=400,
+                )
+        browser_config.creator_user_agents_by_browser_json = (
+            json.dumps(by_browser, ensure_ascii=False) if by_browser else None
         )
+        # Una sola fuente de verdad para creator: mapa por navegador (evita lista legacy desalineada).
+        browser_config.creator_user_agents_json = None
 
     db.session.commit()
     success_msg = (

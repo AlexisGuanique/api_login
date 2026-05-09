@@ -49,7 +49,28 @@ def _build_remote_creator_time_config(user_id: int) -> dict:
     }
 
 
-def _build_remote_creator_user_agents(user_id: int) -> list[str]:
+def _build_remote_creator_user_agents_by_browser(user_id: int) -> dict[str, str]:
+    g = BotGlobalConfig.query.filter_by(user_id=user_id).first()
+    if not g or not g.creator_user_agents_by_browser_json:
+        return {}
+    try:
+        data = json.loads(g.creator_user_agents_by_browser_json)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in data.items():
+        if isinstance(k, str) and isinstance(v, str):
+            kk = k.strip()
+            vv = v.strip()
+            if kk and vv:
+                out[kk] = vv
+    return out
+
+
+def _build_remote_creator_user_agents_legacy_list(user_id: int) -> list[str]:
+    """Lista legacy (columna creator_user_agents_json); respaldo si no hay mapa por navegador."""
     g = BotGlobalConfig.query.filter_by(user_id=user_id).first()
     if not g or not g.creator_user_agents_json:
         return []
@@ -196,7 +217,13 @@ def send_command(bot_id):
         preferred_browsers = get_preferred_browsers_list(global_config)
         preferred_browser = preferred_browsers[0] if preferred_browsers else None
 
-        creator_user_agents = _build_remote_creator_user_agents(request.current_user.id)
+        by_browser = _build_remote_creator_user_agents_by_browser(request.current_user.id)
+        legacy_list = _build_remote_creator_user_agents_legacy_list(request.current_user.id)
+        ua_for_preferred = None
+        if preferred_browser and by_browser:
+            ua_for_preferred = by_browser.get(preferred_browser)
+        if not ua_for_preferred and legacy_list:
+            ua_for_preferred = legacy_list[0]
 
         # Enviar comando vía WebSocket
         socketio = current_app.socketio
@@ -211,13 +238,23 @@ def send_command(bot_id):
             payload['remote_creator_time_config'] = _build_remote_creator_time_config(
                 request.current_user.id
             )
-            payload['remote_creator_user_agents'] = creator_user_agents
+            payload['remote_creator_user_agents_by_browser'] = by_browser
+            payload['remote_creator_user_agent'] = ua_for_preferred
+            payload['remote_creator_user_agents'] = (
+                list(by_browser.values()) if by_browser else legacy_list
+            )
             # Debug temporal: habilitar con BOT_CREATOR_UA_DEBUG=true
             if os.getenv("BOT_CREATOR_UA_DEBUG", "false").lower() == "true":
-                sample = creator_user_agents[:3]
+                ua_dbg = (
+                    (ua_for_preferred[:120] + "…")
+                    if ua_for_preferred
+                    else None
+                )
                 print(
-                    f"🐞 DEBUG creator UAs -> user_id={request.current_user.id}, "
-                    f"bot_id={bot_id}, count={len(creator_user_agents)}, sample={sample}"
+                    f"🐞 DEBUG creator UA -> user_id={request.current_user.id}, "
+                    f"bot_id={bot_id}, preferred_browser={preferred_browser!r}, "
+                    f"ua_for_preferred={ua_dbg!r}, "
+                    f"by_browser_keys={list(by_browser.keys())[:8]}"
                 )
         socketio.emit('command', payload, room=bot.socket_id)
         

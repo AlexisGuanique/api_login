@@ -4,31 +4,36 @@ Esta guía documenta cómo recibe los User-Agents el bot al iniciar el proceso c
 
 ## 1) Origen de los User-Agents
 
-Hay dos fuentes complementarias:
+1. **Mapa por nombre de navegador** (configuración web en `web/bot-config`):
+   - Un campo de texto por cada perfil del catálogo sincronizado (mismo nombre que usa el bot, p. ej. `BraveNormal`, `Chrome`).
+   - Se persiste en `bot_global_config.creator_user_agents_by_browser_json` como objeto JSON `{ "NombreNavegador": "Mozilla/5.0 ...", ... }`.
+   - Los valores de ese mapa (sin duplicar claves) también alimentan el **pool** que puede rellenar o forzar `user_agent` al guardar cuentas vía `POST /api/accounts/save/…` (ver `docs/README_API_GUARDADO_CUENTAS.md`).
 
-1. **Lista global de creator** (configuración web):
-   - Se edita en `web/bot-config` en el cuadro de texto (un User-Agent por línea).
-   - Lo mostrado es lo guardado en servidor; al guardar se persiste en `bot_global_config.creator_user_agents_json`.
-   - Esa misma lista puede **rellenar o forzar** el `user_agent` al guardar cuentas vía `POST /api/accounts/save/…` (ver `docs/README_API_GUARDADO_CUENTAS.md`).
+2. **Lista legacy** (`creator_user_agents_json`):
+   - Solo se usa como **respaldo** si el mapa por navegador está vacío y aún existiera una lista antigua en BD.
 
-2. **User-Agent por cuenta**:
-   - Cada cuenta en `/api/accounts/save/<user_id>` lleva su `user_agent`.
-   - Al consumir `/api/accounts/next/<user_id>`, cada account devuelta incluye su `user_agent`.
+3. **User-Agent por cuenta**:
+   - Cada cuenta en `/api/accounts/save/<user_id>` puede llevar su `user_agent`.
+   - Al consumir `/api/accounts/next/<user_id>`, cada fila devuelta incluye su `user_agent`.
 
 ## 2) Payload WebSocket que recibe el bot
 
-Cuando se envía comando al bot (`/api/bots/command/<bot_id>`), llega un evento `command` con este bloque relevante:
+Cuando se envía comando al bot (`/api/bots/command/<bot_id>`), llega un evento `command` con este bloque relevante para creator:
 
 ```json
 {
   "command": "execute_creator",
   "bot_id": 123,
-  "preferred_browser": "Chrome",
-  "preferred_browsers": ["Chrome", "Firefox"],
+  "preferred_browser": "BraveNormal",
+  "preferred_browsers": ["BraveNormal", "Chrome"],
+  "remote_creator_user_agents_by_browser": {
+    "BraveNormal": "Mozilla/5.0 ...",
+    "Chrome": "Mozilla/5.0 ..."
+  },
+  "remote_creator_user_agent": "Mozilla/5.0 ...",
   "remote_creator_user_agents": [
     "Mozilla/5.0 ...",
-    "Mozilla/5.0 ...",
-    "..."
+    "Mozilla/5.0 ..."
   ],
   "remote_creator_time_config": {
     "scheduled_time": null,
@@ -47,33 +52,23 @@ Cuando se envía comando al bot (`/api/bots/command/<bot_id>`), llega un evento 
 
 ### Significado de campos UA
 
-- `remote_creator_user_agents`: **lista completa** de UAs para creator (campo único global para UAs de creator).
+- **`remote_creator_user_agents_by_browser`**: mapa **nombre de navegador → User-Agent**. El bot debe elegir la clave que coincida con el perfil que está ejecutando.
+- **`remote_creator_user_agent`**: UA recomendado para la sesión actual: el del `preferred_browser` si existe en el mapa; si no, primer elemento de la lista legacy (si aplica).
+- **`remote_creator_user_agents`**: lista de todos los UA del mapa (o la lista legacy), útil para compatibilidad con clientes que solo leían la lista.
 
-Si no hay lista cargada en la web, este campo llega como lista vacía (`[]`).
+Si no hay UAs configurados, `remote_creator_user_agents_by_browser` es `{}`, `remote_creator_user_agent` puede ser `null` y `remote_creator_user_agents` es `[]`.
 
 ## 3) Recomendación de consumo en el bot
 
-Prioridad sugerida para el bot creator:
-
-1. Usar `remote_creator_user_agents` si viene con elementos.
-2. Además, para ejecución por cuenta, usar el `user_agent` incluido en cada account obtenida por `/api/accounts/next/<user_id>`.
+1. Si `remote_creator_user_agents_by_browser` tiene la clave del navegador en ejecución, usar **ese** string.
+2. Si no, usar `remote_creator_user_agent` si viene definido.
+3. Para cuentas ya en cola, preferir el `user_agent` de cada account desde `/api/accounts/next/<user_id>`.
 
 ## 4) Formato en la pantalla de configuración
 
-- Una línea = un User-Agent.
-- Líneas vacías se ignoran.
-- Duplicados se eliminan automáticamente (comparación case-insensitive).
+- Un input por perfil del catálogo; el **nombre del perfil** es la clave en el JSON.
+- Los navegadores marcados como **globales** deben tener UA no vacío antes de guardar.
 
-Ejemplo:
+## 5) Vaciar
 
-```text
-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.7672.61 Safari/537.36
-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.1755.42 Safari/537.36
-Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5137.56 Safari/537.36
-```
-
-## 5) Vaciar lista
-
-En `web/bot-config` existe botón **“Vaciar lista de User-Agents”**:
-- Limpia `creator_user_agents_json` en BD.
-- En siguientes comandos creator, la lista global se enviará vacía.
+En `web/bot-config`, **«Vaciar User-Agents por navegador»** limpia `creator_user_agents_by_browser_json` y `creator_user_agents_json`.

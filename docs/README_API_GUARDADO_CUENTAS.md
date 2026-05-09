@@ -21,9 +21,9 @@ Se acepta una de estas formas en la raíz del JSON:
 
 Opcional en la raíz:
 
-- **`force_creator_pool_user_agents`**: si es `true`, **ignora** el `user_agent` enviado por cuenta y asigna uno de la lista guardada en **`/web/bot-config`** (lista creator), en **rotación** por índice (`i % n`). Requiere que esa lista no esté vacía.
+- **`force_creator_pool_user_agents`**: si es `true`, **ignora** el `user_agent` enviado por cuenta y asigna uno de los User-Agents guardados en **`/web/bot-config`** (creator: **mapa por navegador**), en **rotación** por índice (`i % n`) sobre los valores del mapa. Requiere que haya al menos un UA configurado.
 
-Si **no** usas esa bandera y en servidor **sí** hay lista creator: cualquier cuenta cuyo `user_agent` venga vacío o solo espacios se rellena automáticamente desde esa misma lista (rotación por posición en el lote).
+Si **no** usas esa bandera y en servidor **sí** hay UAs de creator (mapa o, en su defecto, lista legacy): cualquier cuenta cuyo `user_agent` venga vacío o solo espacios se rellena automáticamente desde ese conjunto (rotación por posición en el lote).
 
 ---
 
@@ -64,12 +64,12 @@ Si **no** usas esa bandera y en servidor **sí** hay lista creator: cualquier cu
 
 ## Consumo posterior (bots / otras apps)
 
-Al obtener cuentas (por ejemplo `POST /api/accounts/next/<user_id>` u otros listados), cada objeto incluye **`user_agent`** y **`cookie`**. El cliente debe usar el **`user_agent` devuelto con esa cuenta**, no un mapa de UA por navegador desde el servidor (esa configuración fue retirada).
+Al obtener cuentas (por ejemplo `POST /api/accounts/next/<user_id>` u otros listados), cada objeto incluye **`user_agent`** y **`cookie`**. El cliente debe usar el **`user_agent` devuelto con esa cuenta** al consumir la cola. El mapa por navegador en bot-config sirve sobre todo al **arrancar creator** (`execute_creator`) y para rellenar cuentas al guardarlas, como se describe arriba.
 
 ---
 
 ## Nota de contexto
 
-El User-Agent **viaja con cada cuenta** al guardar y al leer la cola. La lista masiva de creator en **`/web/bot-config`** es la misma fuente que puede rellenar o forzar el `user_agent` al guardar, para que coincida con lo “registrado” en servidor si así lo configuras.
+El User-Agent **viaja con cada cuenta** al guardar y al leer la cola. Los UAs de creator en **`/web/bot-config`** (uno por nombre de navegador en el catálogo) se exponen como lista de valores para rellenar o forzar el `user_agent` al guardar, si activas esa opción o dejas el campo vacío.
 
 Para más detalle del cambio de modelo y migraciones, ver `docs/cuentas-user-agent-por-cuenta.md`.

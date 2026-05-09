@@ -47,34 +47,41 @@
     </fieldset>
 
     <p class="muted" style="margin-top: 8px;">
-      El <strong>User-Agent</strong> de cada sesión se envía <strong>junto a cada cuenta</strong> al guardarlas (API <code>/api/accounts/save/…</code>);
-      el bot lo usa al consumir la cola de cuentas. Ya no se configura por navegador en esta pantalla.
+      El <strong>User-Agent</strong> por <strong>nombre de navegador</strong> (catálogo sincronizado) se envía al bot en <code>execute_creator</code> y puede alinearse con las cuentas (API <code>/api/accounts/save/…</code>).
     </p>
 
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border, #e5e5e5);">
-      <h3 style="margin: 0 0 8px 0;">Creator: User-Agents en servidor</h3>
+      <h3 style="margin: 0 0 8px 0;">Creator: User-Agent por navegador (servidor)</h3>
       <p class="muted" style="margin-top: 0;">
-        Lo que ves aquí es lo guardado en el servidor. Pega o edita <strong>un User-Agent por línea</strong> y pulsa «Guardar configuración global».
-        Al ejecutar creator se envía la lista completa al bot.
+        Un campo por cada perfil del catálogo. El bot debe usar el UA del navegador que esté ejecutando (mismo nombre que aquí, p. ej. <code>BraveNormal</code>).
+        Navegadores marcados como globales deben tener UA rellenado antes de guardar.
       </p>
-      <p class="muted" style="margin: 0 0 6px 0;">
-        Cantidad actual: <strong>{{ creator_user_agents_count or 0 }}</strong>.
+      <p class="muted" style="margin: 0 0 10px 0;">
+        Perfiles con UA guardado: <strong>{{ creator_ua_configured_count or 0 }}</strong> / {{ browser_options|length if browser_options else 0 }}.
       </p>
-      <label for="creator_user_agents_bulk">Lista de User-Agents</label>
-      <textarea
-        id="creator_user_agents_bulk"
-        name="creator_user_agents_bulk"
-        class="input"
-        rows="10"
-        placeholder="Mozilla/5.0 ...&#10;Mozilla/5.0 ..."
-        style="width: 100%; min-height: 180px; resize: vertical; font-family: inherit;"
-      >{{ creator_user_agents_text or '' }}</textarea>
-      <p class="muted" style="margin: 6px 0 0 0;">
-        Deja el cuadro vacío y guarda para borrar la lista (o usa el botón de vaciar).
-      </p>
-      <div style="margin-top: 8px;">
+      {% if not browser_options %}
+      <div class="muted">Conecta un bot para cargar el catálogo de navegadores.</div>
+      {% else %}
+      <div style="display: grid; gap: 12px;">
+        {% for browser_name in browser_options %}
+        <div style="display: grid; gap: 6px;">
+          <label for="creator_ua_{{ loop.index0 }}">{{ browser_name }}</label>
+          <input
+            id="creator_ua_{{ loop.index0 }}"
+            type="text"
+            name="creator_ua_{{ loop.index0 }}"
+            class="input"
+            placeholder="Mozilla/5.0 ..."
+            value="{{ creator_ua_by_browser.get(browser_name, '') }}"
+            autocomplete="off"
+          />
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div style="margin-top: 12px;">
         <button type="submit" class="button button--danger" name="clear_creator_user_agents" value="1">
-          Vaciar lista de User-Agents
+          Vaciar User-Agents por navegador
         </button>
       </div>
     </div>
