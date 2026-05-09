@@ -6,10 +6,39 @@ from sqlalchemy import func
 from flask import Blueprint, request, jsonify
 from app.models.account import Account
 from app.models.user import User
+from app.models.bot_global_config import BotGlobalConfig
 from app.database import db
 from app.utils.auth import token_required
 
 accounts_bp = Blueprint('accounts', __name__, url_prefix='/api/accounts')
+
+
+def _creator_user_agent_pool(user_id: int) -> list[str]:
+    """Lista de UAs guardados en bot-config (creator) para ese usuario."""
+    cfg = BotGlobalConfig.query.filter_by(user_id=user_id).first()
+    if not cfg or not cfg.creator_user_agents_json:
+        return []
+    try:
+        data = json.loads(cfg.creator_user_agents_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    out: list[str] = []
+    for item in data:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+    return out
+
+
+def _truthy_flag(value) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, (int, float)) and value == 1:
+        return True
+    if isinstance(value, str) and value.strip().lower() in ("1", "true", "yes", "on"):
+        return True
+    return False
 
 # Constante para el tamaño del lote (SQLite tiene límite de ~999 parámetros)
 BATCH_SIZE = 500  # Usar 500 para estar seguros, dejando margen
@@ -141,6 +170,26 @@ def save_accounts(user_id):
     # Validar que todos los elementos sean diccionarios
     if not all(isinstance(account, dict) for account in accounts_list):
         return jsonify({"error": "Todas las cuentas deben ser objetos"}), 400
+
+    # Alinear user_agent con el pool del servidor (bot-config) si aplica
+    pool = _creator_user_agent_pool(user_id)
+    force_pool = _truthy_flag(data.get("force_creator_pool_user_agents"))
+    if force_pool and not pool:
+        return jsonify({
+            "error": (
+                "force_creator_pool_user_agents está activo pero no hay User-Agents en servidor. "
+                "Configúralos en /web/bot-config (lista de creator)."
+            ),
+        }), 400
+    for i, account in enumerate(accounts_list):
+        if not isinstance(account, dict):
+            continue
+        if force_pool:
+            account["user_agent"] = pool[i % len(pool)]
+            continue
+        ua = account.get("user_agent")
+        if not (isinstance(ua, str) and ua.strip()) and pool:
+            account["user_agent"] = pool[i % len(pool)]
     
     # Validar campos requeridos para cada cuenta
     required_fields = ['user_agent', 'email', 'password', 'cookie']

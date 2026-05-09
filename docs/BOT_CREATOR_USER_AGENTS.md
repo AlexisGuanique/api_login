@@ -9,6 +9,7 @@ Hay dos fuentes complementarias:
 1. **Lista global de creator** (configuración web):
    - Se edita en `web/bot-config` en el cuadro de texto (un User-Agent por línea).
    - Lo mostrado es lo guardado en servidor; al guardar se persiste en `bot_global_config.creator_user_agents_json`.
+   - Esa misma lista puede **rellenar o forzar** el `user_agent` al guardar cuentas vía `POST /api/accounts/save/…` (ver `docs/README_API_GUARDADO_CUENTAS.md`).
 
 2. **User-Agent por cuenta**:
    - Cada cuenta en `/api/accounts/save/<user_id>` lleva su `user_agent`.

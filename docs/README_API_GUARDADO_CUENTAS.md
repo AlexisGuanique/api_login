@@ -19,13 +19,19 @@ Se acepta una de estas formas en la raíz del JSON:
 - **`accounts`**: array de objetos cuenta, o  
 - **`account`**: un solo objeto (equivalente a una sola cuenta).
 
+Opcional en la raíz:
+
+- **`force_creator_pool_user_agents`**: si es `true`, **ignora** el `user_agent` enviado por cuenta y asigna uno de la lista guardada en **`/web/bot-config`** (lista creator), en **rotación** por índice (`i % n`). Requiere que esa lista no esté vacía.
+
+Si **no** usas esa bandera y en servidor **sí** hay lista creator: cualquier cuenta cuyo `user_agent` venga vacío o solo espacios se rellena automáticamente desde esa misma lista (rotación por posición en el lote).
+
 ---
 
 ## Campos obligatorios por cuenta
 
 | Campo | Descripción |
 |--------|-------------|
-| **`user_agent`** | Cadena (`string`) **no vacía** tras quitar espacios al inicio y al final. Es el User-Agent **de esa cuenta/sesión**. Ya no se toma de configuración por navegador en el servidor. |
+| **`user_agent`** | Cadena (`string`) **no vacía** tras quitar espacios (salvo que el servidor la complete desde la lista creator como arriba). Si envías un valor explícito, es el que se guarda salvo que actives `force_creator_pool_user_agents`. |
 | **`email`** | Obligatorio, con valor. |
 | **`password`** | Obligatorio, con valor. |
 | **`cookie`** | Obligatorio. Puede ser **string** (p. ej. JSON de cookies), **array** u **object**; el servidor lo normaliza y persiste (típicamente como JSON en texto). |
@@ -49,7 +55,8 @@ Se acepta una de estas formas en la raíz del JSON:
 
 ## Validación relevante
 
-- Si falta `user_agent`, no es `string`, o es solo espacios → **400** con cuerpo que puede incluir `invalid_accounts` (índice, objeto enviado y lista `missing_fields`).
+- Si falta `user_agent` usable (vacío y sin lista creator en servidor, o no es `string` tras rellenar) → **400** con `invalid_accounts` cuando corresponda.
+- `force_creator_pool_user_agents` sin lista en bot-config → **400** con mensaje claro.
 - Emails **duplicados dentro de la misma petición** → **400**.
 - Cuenta cuyo `email` **ya existe** para ese `user_id` → no se inserta de nuevo; la respuesta indica duplicados y contadores (`saved_count`, `duplicate_emails`, etc.).
 
@@ -63,6 +70,6 @@ Al obtener cuentas (por ejemplo `POST /api/accounts/next/<user_id>` u otros list
 
 ## Nota de contexto
 
-El User-Agent **viaja con cada cuenta** al guardar y al leer la cola. La UI de “User-Agent por navegador” y la tabla asociada en servidor ya no aplican para este flujo.
+El User-Agent **viaja con cada cuenta** al guardar y al leer la cola. La lista masiva de creator en **`/web/bot-config`** es la misma fuente que puede rellenar o forzar el `user_agent` al guardar, para que coincida con lo “registrado” en servidor si así lo configuras.
 
 Para más detalle del cambio de modelo y migraciones, ver `docs/cuentas-user-agent-por-cuenta.md`.
